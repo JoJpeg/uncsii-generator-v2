@@ -248,7 +248,8 @@ public class DisplayManager {
 
             // Update the control panel with the clicked info
             if (controlPanel != null) {
-                controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette.getPalette(), glyphManager.getPatterns());
+                controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette.getPalette(),
+                        glyphManager.getPatterns());
             }
 
             Logger.println("Clicked cell: X=" + clickedGridX + ", Y=" + clickedGridY);

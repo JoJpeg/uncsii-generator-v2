@@ -7,6 +7,7 @@ import java.util.Set;
 import processing.core.PApplet;
 import processing.core.PFont;
 import processing.core.PImage;
+import processing.event.KeyEvent;
 import processing.event.MouseEvent;
 
 /**
@@ -89,13 +90,24 @@ public class ProcessingCore extends PApplet {
     private int mouseGridY = -1;
     private ResultGlyph selectedGlyph = null;
 
-    // Clicked selection
+    // Clicked selection (single cell)
     private int clickedGridX = -1;
     private int clickedGridY = -1;
     public ResultGlyph clickedGlyph = null;
 
     // --- Control Panel ---
     private ControlPanel controlPanel;
+
+    // --- Interaction State ---
+    public boolean isSpacebarDown = false; // Track spacebar state
+    public boolean isSelecting = false; // Is a selection drag currently active?
+    public boolean hasSelection = false; // Does a valid selection exist?
+    public int selectionStartX = -1; // Grid coordinates for selection start
+    public int selectionStartY = -1;
+    public int selectionEndX = -1; // Grid coordinates for selection end
+    public int selectionEndY = -1;
+    public boolean startedDragging = false; // Track if dragging started (for panning or selection)
+    public long clickStart = 0; // Track click time
 
     // ========== PROCESSING LIFECYCLE METHODS ==========
 
@@ -150,7 +162,7 @@ public class ProcessingCore extends PApplet {
     private void initControlPanel() {
         controlPanel = new ControlPanel(this);
         controlPanel.setVisible(true);
-        controlPanel.setState(ControlPanel.State.SETUP);
+        controlPanel.setState(ControlPanel.PanelState.SETUP);
 
         // Position the control panel next to the main window
         try {
@@ -265,7 +277,7 @@ public class ProcessingCore extends PApplet {
         File imageFile = FileHandler.loadFile("Select Image");
         if (imageFile == null) {
             Logger.println("No image file selected. Exiting.");
-            controlPanel.setState(ControlPanel.State.SETUP);
+            controlPanel.setState(ControlPanel.PanelState.SETUP);
             return;
         }
 
@@ -274,11 +286,11 @@ public class ProcessingCore extends PApplet {
 
         if (imageLoadingState == ImageLoadingState.ERROR) {
             Logger.println("Error loading image. Exiting.");
-            controlPanel.setState(ControlPanel.State.SETUP);
+            controlPanel.setState(ControlPanel.PanelState.SETUP);
             return;
         }
 
-        controlPanel.setState(ControlPanel.State.EDIT);
+        controlPanel.setState(ControlPanel.PanelState.EDIT);
     }
 
     /**
@@ -772,6 +784,9 @@ public class ProcessingCore extends PApplet {
 
         // Handle clicked highlight
         handleClickedHighlight(gridOriginX, gridOriginY, cellWidth, cellHeight);
+
+        // Draw Selection Rectangle
+        drawSelectionRectangle(gridOriginX, gridOriginY, cellWidth, cellHeight);
     }
 
     /**
@@ -837,6 +852,33 @@ public class ProcessingCore extends PApplet {
     }
 
     /**
+     * Draws the selection rectangle if one is active or exists.
+     */
+    private void drawSelectionRectangle(int gridOriginX, int gridOriginY, int cellWidth, int cellHeight) {
+        if (isSelecting || hasSelection) {
+            // Normalize coordinates to find top-left and bottom-right
+            int minX = min(selectionStartX, selectionEndX);
+            int minY = min(selectionStartY, selectionEndY);
+            int maxX = max(selectionStartX, selectionEndX);
+            int maxY = max(selectionStartY, selectionEndY);
+
+            if (minX == -1 || minY == -1)
+                return; // Invalid selection state
+
+            float rectX = gridOriginX + minX * cellWidth;
+            float rectY = gridOriginY + minY * cellHeight;
+            float rectW = (maxX - minX + 1) * cellWidth;
+            float rectH = (maxY - minY + 1) * cellHeight;
+
+            noFill();
+            stroke(255, 255, 255, 200); // White, slightly transparent outline
+            strokeWeight(1.5f);
+            rect(rectX, rectY, rectW, rectH);
+            noStroke();
+        }
+    }
+
+    /**
      * Display a scaled glyph with the given pattern and colors
      */
     void displayScaledGlyph(long pattern, int screenX, int screenY, int pixelSize, int bgCol, int fgCol) {
@@ -851,55 +893,16 @@ public class ProcessingCore extends PApplet {
         }
     }
 
-    // ========== FILE OPERATIONS ==========
-
-    /**
-     * Save the result to a file in the old format
-     */
-    void saveResultOldFormat(String filePath) {
-        if (resultGrid == null) {
-            Logger.println("No result to save.");
-            return;
-        }
-
-        Logger.println("Saving result to " + filePath + " ...");
-        try (PrintWriter writer = createWriter(filePath)) {
-            writer.println("TYPE=USCII_ART_V2_CODEPOINT");
-            writer.println("WIDTH=" + gridWidth);
-            writer.println("HEIGHT=" + gridHeight);
-            writer.println("COLORS=xterm256");
-            writer.println("DATA_FORMAT=CODEPOINT FG_INDEX BG_INDEX");
-            writer.println("DATA");
-
-            for (int y = 0; y < gridHeight; y++) {
-                StringBuilder line = new StringBuilder();
-                for (int x = 0; x < gridWidth; x++) {
-                    ResultGlyph g = resultGrid[y][x];
-                    line.append(g.codePoint).append(" ")
-                            .append(g.fgIndex).append(" ")
-                            .append(g.bgIndex);
-
-                    if (x < gridWidth - 1) {
-                        line.append(" ");
-                    }
-                }
-                writer.println(line.toString());
-            }
-            writer.flush();
-            Logger.println("Result saved successfully.");
-        } catch (Exception e) {
-            Logger.println("Error saving result file: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
     // ========== USER INTERACTION ==========
 
     @Override
     public void mousePressed() {
-        // Check if the click is within the result grid area when it's displayed
         clickStart = System.currentTimeMillis();
+        startedDragging = false; // Reset dragging flag on new press
+        isSelecting = false; // Reset selection drag flag
+
         if (!showSourceImage && resultGrid != null) {
+            // Calculate grid cell dimensions and origin
             int cellWidth = GLYPH_WIDTH * DISPLAY_SCALE;
             int cellHeight = GLYPH_HEIGHT * DISPLAY_SCALE;
             int totalGridWidthPixels = gridWidth * cellWidth;
@@ -909,76 +912,182 @@ public class ProcessingCore extends PApplet {
 
             int mouseRelativeX = mouseX - gridOriginX;
             int mouseRelativeY = mouseY - gridOriginY;
-
             int gridClickX = mouseRelativeX / cellWidth;
             int gridClickY = mouseRelativeY / cellHeight;
 
             // Check if the click is within the valid grid boundaries
-            if (mouseRelativeX >= 0 && mouseRelativeX < totalGridWidthPixels &&
+            boolean clickInGrid = mouseRelativeX >= 0 && mouseRelativeX < totalGridWidthPixels &&
                     mouseRelativeY >= 0 && mouseRelativeY < totalGridHeightPixels &&
                     gridClickX >= 0 && gridClickX < gridWidth &&
-                    gridClickY >= 0 && gridClickY < gridHeight) {
+                    gridClickY >= 0 && gridClickY < gridHeight &&
+                    mouseButton == LEFT;
 
-                // Update clicked selection state
-                clickedGridX = gridClickX;
-                clickedGridY = gridClickY;
-                clickedGlyph = resultGrid[clickedGridY][clickedGridX];
+            if (clickInGrid) {
+                // Start selection drag
+                isSelecting = true;
+                hasSelection = false; // Clear previous final selection
+                selectionStartX = gridClickX;
+                selectionStartY = gridClickY;
+                selectionEndX = gridClickX; // Init end to start
+                selectionEndY = gridClickY;
 
-                // Update the control panel with the clicked info, palette, and patterns
-                if (controlPanel != null) {
-                    controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette,
-                            asciiPatterns);
-                }
-
-                Logger.println("Clicked cell: X=" + clickedGridX + ", Y=" + clickedGridY);
-            } else {
-                // Reset clicked selection if outside and update control panel
+                // Clear single-cell click selection when starting drag selection
                 clickedGridX = -1;
                 clickedGridY = -1;
                 clickedGlyph = null;
                 if (controlPanel != null) {
                     controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
                 }
+                Logger.println("Selection started at: (" + selectionStartX + "," + selectionStartY + ")");
+
+            } else {
+                // Click outside grid: Clear single-cell click AND selection area
+                clickedGridX = -1;
+                clickedGridY = -1;
+                clickedGlyph = null;
+                hasSelection = false;
+                selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
+                if (controlPanel != null) {
+                    controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
+                }
+                Logger.println("Clicked outside grid, selection cleared.");
             }
         } else {
-            // Reset clicked selection if source image is shown and update control panel
+            // Source image shown or no grid: Clear single-cell click AND selection area
             clickedGridX = -1;
             clickedGridY = -1;
             clickedGlyph = null;
+            hasSelection = false;
+            selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
             if (controlPanel != null) {
                 controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
             }
         }
     }
 
-    boolean startedDragging = false;
-    long clickStart = 0;
-
     @Override
     public void mouseDragged() {
-        // Only pan if left mouse button is held
-        if (mouseButton == LEFT) {
-            int deltaX = mouseX - pmouseX;
-            int deltaY = mouseY - pmouseY;
-            int totalDelta = abs(deltaX) + abs(deltaY);
-            // int threshold = 2; // Minimum drag distance to start panning
-            boolean draggedFastEnough = totalDelta > 10;
-            boolean draggedLongeEnough = System.currentTimeMillis() - clickStart > 100;
-            if (startedDragging || draggedLongeEnough || draggedFastEnough) {
+
+        int deltaX = mouseX - pmouseX;
+        int deltaY = mouseY - pmouseY;
+        int totalDelta = abs(deltaX) + abs(deltaY);
+
+        boolean draggedSignificantly = totalDelta > 3; // Small threshold to differentiate click from drag
+        if (!startedDragging && draggedSignificantly) {
+            startedDragging = true; // Mark that a drag has actually started
+        }
+
+        if (mouseButton == RIGHT) {
+
+            // --- Panning Logic ---
+            isSelecting = false; // Stop selection if space is pressed mid-drag
+            // Pan only if dragging has started
+            if (startedDragging) {
                 drawX += deltaX;
                 drawY += deltaY;
             }
-            // if (abs(deltaX) < threshold && abs(deltaY) < threshold && !startedDragging) {
-            // return; // Ignore small drags
-            // }
-            startedDragging = true;
-
         }
+
+        if (isSelecting) {
+            // --- Selection Logic ---
+            // Calculate grid cell dimensions and origin (needed to find current grid cell)
+            int cellWidth = GLYPH_WIDTH * DISPLAY_SCALE;
+            int cellHeight = GLYPH_HEIGHT * DISPLAY_SCALE;
+            int totalGridWidthPixels = gridWidth * cellWidth;
+            int totalGridHeightPixels = gridHeight * cellHeight;
+            int gridOriginX = (width - totalGridWidthPixels) / 2 + drawX - width / 2;
+            int gridOriginY = (height - totalGridHeightPixels) / 2 + drawY - height / 2;
+
+            // Calculate current grid coordinates under mouse, clamped to grid bounds
+            int mouseRelativeX = mouseX - gridOriginX;
+            int mouseRelativeY = mouseY - gridOriginY;
+            int currentGridX = constrain(mouseRelativeX / cellWidth, 0, gridWidth - 1);
+            int currentGridY = constrain(mouseRelativeY / cellHeight, 0, gridHeight - 1);
+
+            // Update selection end coordinates only if dragging has started
+            if (startedDragging) {
+                selectionEndX = currentGridX;
+                selectionEndY = currentGridY;
+                hasSelection = false; // Selection is not final until mouse release
+            }
+        }
+
     }
 
+    @Override
     public void mouseReleased() {
-        // Reset dragging state when mouse is released
+        Logger.print("Mouse released. ");
+        if (isSelecting) {
+            isSelecting = false; // Selection drag finished
+            // Check if selection is valid (start coords are valid)
+            if (selectionStartX != -1 && selectionStartY != -1) {
+                // If end coords are still -1 (no drag occurred), make selection 1x1
+                if (selectionEndX == -1)
+                    selectionEndX = selectionStartX;
+                if (selectionEndY == -1)
+                    selectionEndY = selectionStartY;
+
+                // Check if the selection is just a single cell (no actual drag)
+                if (selectionStartX == selectionEndX && selectionStartY == selectionEndY && !startedDragging) {
+                    hasSelection = false; // It was just a click, not a selection drag
+                    // Handle as single cell click below
+                } else {
+                    hasSelection = true; // Finalize the selection area
+                    // Normalize coordinates for logging
+                    int minX = min(selectionStartX, selectionEndX);
+                    int minY = min(selectionStartY, selectionEndY);
+                    int maxX = max(selectionStartX, selectionEndX);
+                    int maxY = max(selectionStartY, selectionEndY);
+                    Logger.println("Selection finished: (" + minX + "," + minY + ") to (" + maxX + "," + maxY + ")");
+                }
+            } else {
+                hasSelection = false; // Invalid selection start state
+                Logger.println("Selection finished but was invalid.");
+            }
+        }
+
+        // --- Handle single cell click ---
+        // Occurs if:
+        // - Not panning (spacebar wasn't down during press/drag/release)
+        // - Not a finalized selection drag (either !hasSelection or it was reset above
+        // because no drag occurred)
+        // - Dragging didn't actually start (or was negligible)
+        if (!hasSelection && !startedDragging && mouseButton == LEFT) {
+            // Calculate grid cell dimensions and origin
+            int cellWidth = GLYPH_WIDTH * DISPLAY_SCALE;
+            int cellHeight = GLYPH_HEIGHT * DISPLAY_SCALE;
+            int totalGridWidthPixels = gridWidth * cellWidth;
+            int totalGridHeightPixels = gridHeight * cellHeight;
+            int gridOriginX = (width - totalGridWidthPixels) / 2 + drawX - width / 2;
+            int gridOriginY = (height - totalGridHeightPixels) / 2 + drawY - height / 2;
+
+            int mouseRelativeX = mouseX - gridOriginX;
+            int mouseRelativeY = mouseY - gridOriginY;
+            int gridClickX = mouseRelativeX / cellWidth;
+            int gridClickY = mouseRelativeY / cellHeight;
+
+            boolean clickInGrid = mouseRelativeX >= 0 && mouseRelativeX < totalGridWidthPixels &&
+                    mouseRelativeY >= 0 && mouseRelativeY < totalGridHeightPixels &&
+                    gridClickX >= 0 && gridClickX < gridWidth &&
+                    gridClickY >= 0 && gridClickY < gridHeight;
+
+            if (clickInGrid) {
+                clickedGridX = gridClickX;
+                clickedGridY = gridClickY;
+                clickedGlyph = resultGrid[clickedGridY][clickedGridX];
+                if (controlPanel != null) {
+                    controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette,
+                            asciiPatterns);
+                }
+                Logger.println("Single cell clicked: X=" + clickedGridX + ", Y=" + clickedGridY);
+                // Ensure selection variables are reset if it was just a click
+                selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
+            }
+        }
+
+        // Reset flags for next interaction
         startedDragging = false;
+        isSelecting = false; // Ensure this is false after release
     }
 
     @Override
@@ -1005,14 +1114,108 @@ public class ProcessingCore extends PApplet {
 
     @Override
     public void keyPressed() {
-        keyPressed(key);
+        // Track spacebar down state
+        if (key == ' ') {
+            isSpacebarDown = true;
+        }
+
+        // Pass non-coded keys (and not space) to the char handler
+        if (key != CODED && key != ' ') {
+            handleCharacterKey(key);
+        }
     }
 
-    public void keyPressed(char k) {
-        if (k == 's' || k == 'S') {
+    @Override
+    public void keyReleased() {
+        // Track spacebar up state
+        if (key == ' ') {
+            isSpacebarDown = false;
+        }
+    }
+
+    void keyPressed(char k) {
+        handleCharacterKey(k);
+    }
+
+    @Override
+    public void keyPressed(KeyEvent event) {
+        // Check if controlPanel exists and is in EDIT state
+        if (controlPanel == null || controlPanel.getPanelState() != ControlPanel.PanelState.EDIT) {
+            return;
+        }
+
+        char keyChar = event.getKey();
+        boolean isMeta = event.isMetaDown(); // Cmd on macOS
+        boolean isCtrl = event.isControlDown(); // Ctrl on Win/Linux
+        boolean isShift = event.isShiftDown();
+        boolean isAlt = event.isAltDown();
+
+        // Use isMetaDown for macOS Cmd key, isControlDown otherwise
+        boolean primaryModifier = (System.getProperty("os.name").toLowerCase().contains("mac")) ? isMeta : isCtrl;
+
+        boolean handled = false; // Flag to check if we handled the shortcut
+
+        // --- Handle Modifier Shortcuts ---
+        if (primaryModifier && !isAlt) { // Cmd/Ctrl pressed (without Alt)
+            char lowerKeyChar = Character.toLowerCase(keyChar);
+
+            if (lowerKeyChar == 'c') {
+                if (isShift) {
+                    // Cmd/Ctrl + Shift + C -> Copy Colors
+                    Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Shift+C detected.");
+                    controlPanel.copyInternalColors();
+                    handled = true;
+                } else {
+                    // Cmd/Ctrl + C -> Copy Glyph (Internal + External Char)
+                    Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+C detected.");
+                    controlPanel.copyInternalGlyphAndExternalChar();
+                    handled = true;
+                }
+            } else if (lowerKeyChar == 'v') {
+                if (isShift) {
+                    // Cmd/Ctrl + Shift + V -> Paste Colors
+                    Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Shift+V detected.");
+                    controlPanel.pasteInternalColors();
+                    handled = true;
+                } else {
+                    // Cmd/Ctrl + V -> Paste Char (External)
+                    Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+V detected.");
+                    controlPanel.pasteCharacterFromClipboard();
+                    handled = true;
+                }
+            } else if (lowerKeyChar == 'f') {
+                if (!isShift) {
+                    // Cmd/Ctrl + F -> Flip Colors
+                    Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+F detected.");
+                    flipClickedGlyphColors();
+                    handled = true;
+                }
+            }
+        } else if (primaryModifier && isAlt && !isShift) { // Cmd/Ctrl + Alt pressed (without Shift)
+            char lowerKeyChar = Character.toLowerCase(keyChar);
+            if (lowerKeyChar == 'v') {
+                // Cmd/Ctrl + Alt + V -> Paste Glyph (Internal)
+                Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Alt+V detected.");
+                controlPanel.pasteInternalGlyph();
+                handled = true;
+            }
+        }
+    }
+
+    /**
+     * Helper method to handle simple character key presses (s, p, 1-8, r, l).
+     * Called directly from the simple `keyPressed()` method.
+     * 
+     * @param k The character pressed.
+     */
+    private void handleCharacterKey(char k) {
+        // Convert to lowercase for case-insensitive comparison for letters
+        char lowerK = Character.toLowerCase(k);
+
+        if (lowerK == 's') {
             showSourceImage = !showSourceImage;
             Logger.println("Toggled view: " + (showSourceImage ? "Source Image" : "ASCII Art"));
-        } else if (k == 'p' || k == 'P') {
+        } else if (lowerK == 'p') {
             File outputFile = FileHandler.saveFile("Save Result");
             if (outputFile == null) {
                 Logger.println("No file selected for saving.");
@@ -1023,10 +1226,37 @@ public class ProcessingCore extends PApplet {
         } else if (k >= '1' && k <= '8') {
             int targetScale = k - '0';
             setDisplayScale(targetScale);
-        } else if (k == 'r' || k == 'R') {
+        } else if (lowerK == 'r') {
             reloadCurrentImage();
-        } else if (k == 'l' || k == 'L') {
+        } else if (lowerK == 'l') {
             loadImage();
+        }
+    }
+
+    /**
+     * Swaps the foreground and background color indices of the currently selected
+     * glyph.
+     * Called from the ControlPanel or via shortcut (Cmd/Ctrl+F).
+     */
+    public void flipClickedGlyphColors() {
+        if (clickedGlyph != null && clickedGridX >= 0 && clickedGridY >= 0) {
+            int oldFg = resultGrid[clickedGridY][clickedGridX].fgIndex;
+            int oldBg = resultGrid[clickedGridY][clickedGridX].bgIndex;
+
+            resultGrid[clickedGridY][clickedGridX].fgIndex = oldBg;
+            resultGrid[clickedGridY][clickedGridX].bgIndex = oldFg;
+
+            clickedGlyph = resultGrid[clickedGridY][clickedGridX]; // Update the reference
+
+            Logger.println(
+                    "Flipped colors at (" + clickedGridX + "," + clickedGridY + ") to FG=" + oldBg + ", BG=" + oldFg);
+
+            // Update the control panel display with the modified glyph
+            if (controlPanel != null) {
+                controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette, asciiPatterns);
+            }
+        } else {
+            Logger.println("No glyph selected to flip colors.");
         }
     }
 
@@ -1054,14 +1284,89 @@ public class ProcessingCore extends PApplet {
                     controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette,
                             asciiPatterns);
                 }
-
-                // Redrawing happens automatically in the draw() loop
             } else {
                 Logger.println("Error: Character '" + newChar + "' (Codepoint: " + newCodePoint
                         + ") not found in font patterns. Cannot replace.");
             }
         } else {
             Logger.println("No glyph selected to replace.");
+        }
+    }
+
+    /**
+     * Replaces only the foreground and background colors of the currently selected
+     * glyph.
+     * Called from the ControlPanel (e.g., Paste Colors).
+     * 
+     * @param fgIndex The new foreground color index (0-255).
+     * @param bgIndex The new background color index (0-255).
+     */
+    public void replaceClickedGlyphColors(int fgIndex, int bgIndex) {
+        if (clickedGlyph != null && clickedGridX >= 0 && clickedGridY >= 0) {
+            // Validate indices (optional but recommended)
+            if (fgIndex < 0 || fgIndex >= colorPalette.length || bgIndex < 0 || bgIndex >= colorPalette.length) {
+                Logger.println("Error: Invalid color indices provided (FG: " + fgIndex + ", BG: " + bgIndex
+                        + "). Must be between 0 and 255.");
+                return;
+            }
+
+            resultGrid[clickedGridY][clickedGridX].fgIndex = fgIndex;
+            resultGrid[clickedGridY][clickedGridX].bgIndex = bgIndex;
+            clickedGlyph = resultGrid[clickedGridY][clickedGridX]; // Update the reference
+
+            Logger.println("Replaced colors at (" + clickedGridX + "," + clickedGridY + ") with FG=" + fgIndex + ", BG="
+                    + bgIndex);
+
+            // Update the control panel display with the modified glyph
+            if (controlPanel != null) {
+                controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette, asciiPatterns);
+            }
+        } else {
+            Logger.println("No glyph selected to replace colors.");
+        }
+    }
+
+    /**
+     * Replaces the entire data (codepoint, fgIndex, bgIndex) of the currently
+     * selected glyph
+     * with the data from the provided glyph object.
+     * Called from the ControlPanel (e.g., Paste Internal Glyph).
+     * 
+     * @param sourceGlyph The ResultGlyph object containing the new data.
+     */
+    public void replaceClickedGlyphWithGlyph(ResultGlyph sourceGlyph) {
+        if (clickedGlyph != null && clickedGridX >= 0 && clickedGridY >= 0 && sourceGlyph != null) {
+            // Validate source glyph data (optional but recommended)
+            if (!asciiPatterns.containsKey(sourceGlyph.codePoint)) {
+                Logger.println("Error: Source glyph codepoint " + sourceGlyph.codePoint
+                        + " not found in font patterns. Cannot replace.");
+                return;
+            }
+            if (sourceGlyph.fgIndex < 0 || sourceGlyph.fgIndex >= colorPalette.length || sourceGlyph.bgIndex < 0
+                    || sourceGlyph.bgIndex >= colorPalette.length) {
+                Logger.println("Error: Invalid color indices in source glyph (FG: " + sourceGlyph.fgIndex + ", BG: "
+                        + sourceGlyph.bgIndex + ").");
+                return;
+            }
+
+            // Replace data in the grid
+            resultGrid[clickedGridY][clickedGridX].codePoint = sourceGlyph.codePoint;
+            resultGrid[clickedGridY][clickedGridX].fgIndex = sourceGlyph.fgIndex;
+            resultGrid[clickedGridY][clickedGridX].bgIndex = sourceGlyph.bgIndex;
+
+            clickedGlyph = resultGrid[clickedGridY][clickedGridX]; // Update the reference
+
+            Logger.println("Replaced glyph at (" + clickedGridX + "," + clickedGridY + ") with internal glyph data.");
+
+            // Update the control panel display with the modified glyph
+            if (controlPanel != null) {
+                controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette, asciiPatterns);
+            }
+        } else {
+            if (clickedGlyph == null)
+                Logger.println("No glyph selected to replace.");
+            if (sourceGlyph == null)
+                Logger.println("Source glyph data is null.");
         }
     }
 

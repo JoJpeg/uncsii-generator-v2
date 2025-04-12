@@ -83,7 +83,7 @@ public class AsciiApp extends PApplet {
     private void initializeControlPanel() {
         controlPanel = new ControlPanel(processingCoreAdapter);
         controlPanel.setVisible(true);
-        controlPanel.setState(ControlPanel.State.SETUP);
+        controlPanel.setState(ControlPanel.PanelState.SETUP);
         displayManager.setControlPanel(controlPanel);
 
         // Position the control panel next to the main window
@@ -200,7 +200,7 @@ public class AsciiApp extends PApplet {
         File imageFile = fileHandler.chooseLoadFile("Select Image");
         if (imageFile == null) {
             Logger.println("No image file selected.");
-            controlPanel.setState(ControlPanel.State.SETUP);
+            controlPanel.setState(ControlPanel.PanelState.SETUP);
             return;
         }
 
@@ -215,15 +215,15 @@ public class AsciiApp extends PApplet {
             }
 
             if (result != null) {
-                controlPanel.setState(ControlPanel.State.EDIT);
+                controlPanel.setState(ControlPanel.PanelState.EDIT);
                 Logger.println("ASCII art generation complete. Press 's' to toggle view.");
             } else {
                 Logger.println("Failed to generate ASCII art.");
-                controlPanel.setState(ControlPanel.State.SETUP);
+                controlPanel.setState(ControlPanel.PanelState.SETUP);
             }
         } else {
             Logger.println("Failed to load image.");
-            controlPanel.setState(ControlPanel.State.SETUP);
+            controlPanel.setState(ControlPanel.PanelState.SETUP);
         }
     }
 
@@ -278,7 +278,7 @@ public class AsciiApp extends PApplet {
                     updateProcessingCoreAdapter();
                 }
 
-                controlPanel.setState(ControlPanel.State.EDIT);
+                controlPanel.setState(ControlPanel.PanelState.EDIT);
             }
         } else {
             Logger.println("No image path set to reload.");

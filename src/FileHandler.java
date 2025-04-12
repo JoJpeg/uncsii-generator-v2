@@ -63,14 +63,43 @@ public class FileHandler {
     }
 
     public static void saveResult(String filePath, ProcessingCore p) {
-        filePath = filePath + "2";
+
+        // make the filename consistent
+        String withoutFileEnding = filePath.split("\\.")[0];
+        String fileEnding = "usc2";
+        filePath = withoutFileEnding + "." + fileEnding;
         if (p.resultGrid == null) {
             Logger.println("No result to save.");
             return;
         }
-        if (p.gridWidth <= 0 || p.gridHeight <= 0) {
+        // Use full grid dimensions initially
+        int fullGridWidth = p.gridWidth;
+        int fullGridHeight = p.gridHeight;
+
+        if (fullGridWidth <= 0 || fullGridHeight <= 0) {
             Logger.println("Invalid grid dimensions, cannot save.");
             return;
+        }
+
+        // Determine export boundaries based on selection in ProcessingCore
+        int exportX = 0;
+        int exportY = 0;
+        int exportWidth = fullGridWidth;
+        int exportHeight = fullGridHeight;
+
+        // Access selection state directly from ProcessingCore instance p
+        if (p.hasSelection && p.selectionStartX != -1 && p.selectionStartY != -1 && p.selectionEndX != -1
+                && p.selectionEndY != -1) {
+            exportX = Math.min(p.selectionStartX, p.selectionEndX);
+            exportY = Math.min(p.selectionStartY, p.selectionEndY);
+            int maxX = Math.max(p.selectionStartX, p.selectionEndX);
+            int maxY = Math.max(p.selectionStartY, p.selectionEndY);
+            exportWidth = maxX - exportX + 1;
+            exportHeight = maxY - exportY + 1;
+            Logger.println("Exporting selected area: (" + exportX + "," + exportY + ") Width=" + exportWidth
+                    + " Height=" + exportHeight);
+        } else {
+            Logger.println("Exporting full grid.");
         }
 
         Logger.println("Saving result to " + filePath + " (filtering control chars)...");
@@ -80,29 +109,43 @@ public class FileHandler {
                 PrintWriter writer = new PrintWriter(osw)) {
 
             writer.println("TYPE=USCII_ART_V3_SEPARATED");
-            writer.println("WIDTH=" + p.gridWidth);
-            writer.println("HEIGHT=" + p.gridHeight);
+            // Write the dimensions of the exported area
+            writer.println("WIDTH=" + exportWidth);
+            writer.println("HEIGHT=" + exportHeight);
             writer.println("COLORS=xterm256");
             writer.println("DATA_FORMAT=CHARS_GRID; FG_BG_GRID");
             writer.println();
 
             writer.println("CHARS");
-            for (int y = 0; y < p.gridHeight; y++) {
-                StringBuilder charLine = new StringBuilder(p.gridWidth);
-                for (int x = 0; x < p.gridWidth; x++) {
-                    ResultGlyph g = p.resultGrid[y][x];
-                    if (g != null) {
-                        int cp = g.codePoint;
+            // Loop over the export area dimensions
+            for (int y = 0; y < exportHeight; y++) {
+                StringBuilder charLine = new StringBuilder(exportWidth);
+                for (int x = 0; x < exportWidth; x++) {
+                    // Calculate grid coordinates using offset
+                    int currentGridY = exportY + y;
+                    int currentGridX = exportX + x;
 
-                        if (cp == 0) {
-                            charLine.append(' ');
-                        } else if (Character.isISOControl(cp) && !Character.isWhitespace(cp)) {
-                            charLine.append('.');
+                    // Boundary check before accessing resultGrid
+                    if (currentGridY >= 0 && currentGridY < fullGridHeight && currentGridX >= 0
+                            && currentGridX < fullGridWidth) {
+                        ResultGlyph g = p.resultGrid[currentGridY][currentGridX];
+                        if (g != null) {
+                            int cp = g.codePoint;
+
+                            if (cp == 0) {
+                                charLine.append(' ');
+                            } else if (Character.isISOControl(cp) && !Character.isWhitespace(cp)) {
+                                charLine.append('.'); // Replace control chars (except whitespace) with '.'
+                            } else {
+                                charLine.append(Character.toChars(cp)); // Use toChars for broader Unicode support
+                            }
                         } else {
-                            charLine.append(Character.toString(cp));
+                            charLine.append('?'); // Placeholder for null glyphs
                         }
                     } else {
-                        charLine.append('?');
+                        charLine.append('!'); // Indicate out-of-bounds access attempt (should not happen)
+                        Logger.println("Warning: Attempted to save out-of-bounds cell at (" + currentGridX + ","
+                                + currentGridY + ")");
                     }
                 }
                 writer.println(charLine.toString());
@@ -110,16 +153,28 @@ public class FileHandler {
             writer.println();
 
             writer.println("COLORS");
-            for (int y = 0; y < p.gridHeight; y++) {
-                StringBuilder colorLine = new StringBuilder(p.gridWidth * 8);
-                for (int x = 0; x < p.gridWidth; x++) {
-                    ResultGlyph g = p.resultGrid[y][x];
-                    if (g != null) {
-                        colorLine.append(g.fgIndex).append(" ").append(g.bgIndex);
+            // Loop over the export area dimensions
+            for (int y = 0; y < exportHeight; y++) {
+                StringBuilder colorLine = new StringBuilder(exportWidth * 8); // Adjusted capacity estimate
+                for (int x = 0; x < exportWidth; x++) {
+                    // Calculate grid coordinates using offset
+                    int currentGridY = exportY + y;
+                    int currentGridX = exportX + x;
+
+                    // Boundary check before accessing resultGrid
+                    if (currentGridY >= 0 && currentGridY < fullGridHeight && currentGridX >= 0
+                            && currentGridX < fullGridWidth) {
+                        ResultGlyph g = p.resultGrid[currentGridY][currentGridX];
+                        if (g != null) {
+                            colorLine.append(g.fgIndex).append(" ").append(g.bgIndex);
+                        } else {
+                            colorLine.append("0 0"); // Default colors for null glyphs
+                        }
                     } else {
-                        colorLine.append("0 0");
+                        colorLine.append("0 0"); // Default colors for out-of-bounds
                     }
-                    if (x < p.gridWidth - 1) {
+
+                    if (x < exportWidth - 1) {
                         colorLine.append(" ");
                     }
                 }
