@@ -23,14 +23,13 @@ public class ControlPanel extends JFrame implements ActionListener {
 
     private JButton copyCharButton; // New button for copying
 
-    // Selection Info Labels (Hover) - Renamed for clarity
+    // Selection Info Labels
     private JLabel hoverXPosLabel;
     private JLabel hoverYPosLabel;
     private JLabel hoverCodepointLabel;
     private JLabel hoverFgIndexLabel;
     private JLabel hoverBgIndexLabel;
 
-    // Clicked Selection Info Labels (New)
     private JLabel clickedXPosLabel;
     private JLabel clickedYPosLabel;
     private JLabel clickedCodepointLabel;
@@ -111,60 +110,58 @@ public class ControlPanel extends JFrame implements ActionListener {
         topPanel.add(scalePanel);
         topPanel.add(Box.createRigidArea(new Dimension(0, 10))); // Spacer
 
-        // --- Selection Info Panels ---
+        // --- Selection Info Container ---
         JPanel selectionInfoContainer = new JPanel();
-        selectionInfoContainer.setLayout(new BoxLayout(selectionInfoContainer, BoxLayout.Y_AXIS));
+        selectionInfoContainer.setLayout(new BoxLayout(selectionInfoContainer, BoxLayout.Y_AXIS)); // Vertical layout for table + button
+        selectionInfoContainer.setBorder(BorderFactory.createTitledBorder("Selection Info"));
 
-        // --- Hover Selection Info Panel ---
-        JPanel hoverSelectionPanel = new JPanel(new GridLayout(0, 2, 5, 2));
-        hoverSelectionPanel.setBorder(BorderFactory.createTitledBorder("Hover Info"));
-        hoverSelectionPanel.add(new JLabel("X:"));
-        hoverXPosLabel = new JLabel("-"); // Renamed
-        hoverSelectionPanel.add(hoverXPosLabel);
-        hoverSelectionPanel.add(new JLabel("Y:"));
-        hoverYPosLabel = new JLabel("-"); // Renamed
-        hoverSelectionPanel.add(hoverYPosLabel);
-        hoverSelectionPanel.add(new JLabel("Codepoint:"));
-        hoverCodepointLabel = new JLabel("-"); // Renamed
-        hoverSelectionPanel.add(hoverCodepointLabel);
-        hoverSelectionPanel.add(new JLabel("FG Index:"));
-        hoverFgIndexLabel = new JLabel("-"); // Renamed
-        hoverSelectionPanel.add(hoverFgIndexLabel);
-        hoverSelectionPanel.add(new JLabel("BG Index:"));
-        hoverBgIndexLabel = new JLabel("-"); // Renamed
-        hoverSelectionPanel.add(hoverBgIndexLabel);
-        selectionInfoContainer.add(hoverSelectionPanel);
+        // --- Selection Table Panel (GridLayout) ---
+        JPanel selectionTablePanel = new JPanel(new GridLayout(5, 3, 8, 2));
+
+        // Row 1: X Coordinate
+        selectionTablePanel.add(new JLabel("X:"));
+        clickedXPosLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(clickedXPosLabel);
+        hoverXPosLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(hoverXPosLabel);
+
+        // Row 2: Y Coordinate
+        selectionTablePanel.add(new JLabel("Y:"));
+        clickedYPosLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(clickedYPosLabel);
+        hoverYPosLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(hoverYPosLabel);
+
+        // Row 3: Codepoint
+        selectionTablePanel.add(new JLabel("Codepoint:"));
+        clickedCodepointLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(clickedCodepointLabel);
+        hoverCodepointLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(hoverCodepointLabel);
+
+        // Row 4: FG Index
+        selectionTablePanel.add(new JLabel("FG Index:"));
+        clickedFgIndexLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(clickedFgIndexLabel);
+        hoverFgIndexLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(hoverFgIndexLabel);
+
+        // Row 5: BG Index
+        selectionTablePanel.add(new JLabel("BG Index:"));
+        clickedBgIndexLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(clickedBgIndexLabel);
+        hoverBgIndexLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(hoverBgIndexLabel);
+
+        selectionInfoContainer.add(selectionTablePanel); // Add table to container
         selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
 
-        // --- Clicked Selection Info Panel (New) ---
-        JPanel clickedSelectionPanel = new JPanel(new GridLayout(0, 2, 5, 2));
-        clickedSelectionPanel.setBorder(BorderFactory.createTitledBorder("Clicked Info"));
-        clickedSelectionPanel.add(new JLabel("X:"));
-        clickedXPosLabel = new JLabel("-"); // New
-        clickedSelectionPanel.add(clickedXPosLabel);
-        clickedSelectionPanel.add(new JLabel("Y:"));
-        clickedYPosLabel = new JLabel("-"); // New
-        clickedSelectionPanel.add(clickedYPosLabel);
-        clickedSelectionPanel.add(new JLabel("Codepoint:"));
-        clickedCodepointLabel = new JLabel("-"); // New
-        clickedSelectionPanel.add(clickedCodepointLabel);
-        clickedSelectionPanel.add(new JLabel("FG Index:"));
-        clickedFgIndexLabel = new JLabel("-"); // New
-        clickedSelectionPanel.add(clickedFgIndexLabel);
-        clickedSelectionPanel.add(new JLabel("BG Index:"));
-        clickedBgIndexLabel = new JLabel("-"); // New
-        clickedSelectionPanel.add(clickedBgIndexLabel);
-        selectionInfoContainer.add(clickedSelectionPanel);
-        selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
-
-        // --- Copy Button (New) ---
+        // --- Copy Button ---
         copyCharButton = new JButton("Copy Clicked Char");
-        copyCharButton.setPreferredSize(new Dimension(buttonSize.width, buttonSize.height)); // Use preferred size
+        copyCharButton.setAlignmentX(Component.CENTER_ALIGNMENT); // Center button horizontally
         copyCharButton.setEnabled(false); // Disabled initially
         copyCharButton.addActionListener(this);
-        JPanel copyButtonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER)); // Center the button
-        copyButtonPanel.add(copyCharButton);
-        selectionInfoContainer.add(copyButtonPanel);
+        selectionInfoContainer.add(copyCharButton); // Add button below table
 
         // Add panels to main panel
         mainPanel.add(topPanel, BorderLayout.NORTH);
@@ -240,48 +237,50 @@ public class ControlPanel extends JFrame implements ActionListener {
 
     /**
      * Aktualisiert die Labels für die Zelle unter dem Mauszeiger (Hover).
+     * (Updates Column 3 of the table)
      *
      * @param x     Die X-Koordinate der Zelle (-1 wenn keine Auswahl).
      * @param y     Die Y-Koordinate der Zelle (-1 wenn keine Auswahl).
      * @param glyph Das ResultGlyph-Objekt der Zelle (null wenn keine Auswahl).
      */
-    public void updateSelectionInfo(int x, int y, ResultGlyph glyph) { // Renamed method
+    public void updateSelectionInfo(int x, int y, ResultGlyph glyph) {
         if (x >= 0 && y >= 0 && glyph != null) {
             hoverXPosLabel.setText(String.valueOf(x));
             hoverYPosLabel.setText(String.valueOf(y));
-            hoverCodepointLabel.setText(String.format("%d (U+%04X)", glyph.codePoint, glyph.codePoint));
-            hoverFgIndexLabel.setText(String.valueOf(glyph.fgIndex));
-            hoverBgIndexLabel.setText(String.valueOf(glyph.bgIndex));
+            hoverCodepointLabel.setText(String.format("U+%04X", glyph.codePoint)); // Keep hex format for hover
+            hoverFgIndexLabel.setText(String.valueOf(glyph.fgIndex)); // Set individual FG label
+            hoverBgIndexLabel.setText(String.valueOf(glyph.bgIndex)); // Set individual BG label
         } else {
             hoverXPosLabel.setText("-");
             hoverYPosLabel.setText("-");
             hoverCodepointLabel.setText("-");
-            hoverFgIndexLabel.setText("-");
-            hoverBgIndexLabel.setText("-");
+            hoverFgIndexLabel.setText("-"); // Clear individual FG label
+            hoverBgIndexLabel.setText("-"); // Clear individual BG label
         }
     }
 
     /**
      * Aktualisiert die Labels für die zuletzt angeklickte Zelle.
+     * (Updates Column 2 of the table)
      *
      * @param x     Die X-Koordinate der Zelle (-1 wenn keine Auswahl).
      * @param y     Die Y-Koordinate der Zelle (-1 wenn keine Auswahl).
      * @param glyph Das ResultGlyph-Objekt der Zelle (null wenn keine Auswahl).
      */
-    public void updateClickedInfo(int x, int y, ResultGlyph glyph) { // New method
+    public void updateClickedInfo(int x, int y, ResultGlyph glyph) {
         if (x >= 0 && y >= 0 && glyph != null) {
             clickedXPosLabel.setText(String.valueOf(x));
             clickedYPosLabel.setText(String.valueOf(y));
-            clickedCodepointLabel.setText(String.format("%d (U+%04X)", glyph.codePoint, glyph.codePoint));
-            clickedFgIndexLabel.setText(String.valueOf(glyph.fgIndex));
-            clickedBgIndexLabel.setText(String.valueOf(glyph.bgIndex));
+            clickedCodepointLabel.setText(String.format("%d (U+%04X)", glyph.codePoint, glyph.codePoint)); // Keep full format for clicked
+            clickedFgIndexLabel.setText(String.valueOf(glyph.fgIndex)); // Set individual FG label
+            clickedBgIndexLabel.setText(String.valueOf(glyph.bgIndex)); // Set individual BG label
             copyCharButton.setEnabled(true); // Enable copy button
         } else {
             clickedXPosLabel.setText("-");
             clickedYPosLabel.setText("-");
             clickedCodepointLabel.setText("-");
-            clickedFgIndexLabel.setText("-");
-            clickedBgIndexLabel.setText("-");
+            clickedFgIndexLabel.setText("-"); // Clear individual FG label
+            clickedBgIndexLabel.setText("-"); // Clear individual BG label
             copyCharButton.setEnabled(false); // Disable copy button
         }
     }
