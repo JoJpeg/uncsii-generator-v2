@@ -19,6 +19,9 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JComboBox<String> scaleSelector;
     private TextArea logArea;
 
+    // Singleton-Instanz
+    private static ControlPanel Instance;
+
     public enum State {
         SETUP,
         EDIT,
@@ -30,6 +33,7 @@ public class ControlPanel extends JFrame implements ActionListener {
      * @param core Die ProcessingCore-Instanz, die gesteuert werden soll.
      */
     public ControlPanel(ProcessingCore core) {
+        Instance = this; // Setze die Singleton-Instanz
         if (core == null) {
             throw new IllegalArgumentException("ProcessingCore darf nicht null sein");
         }
@@ -41,41 +45,34 @@ public class ControlPanel extends JFrame implements ActionListener {
         setResizable(false);
 
         // Layout erstellen
-        JPanel mainPanel = new JPanel();
-        mainPanel.setLayout(new GridLayout(0, 1, 5, 5));
+        JPanel mainPanel = new JPanel(new BorderLayout(5, 5)); // Use BorderLayout
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Panel for controls (buttons and scale selector)
+        JPanel controlPanel = new JPanel(new GridLayout(0, 1, 5, 5));
 
         Dimension buttonSize = new Dimension(200, 30);
 
-        // Komponenten erstellen
+        // Komponenten erstellen und zum controlPanel hinzufügen
         loadButton = new JButton("Load File (L)");
         loadButton.setPreferredSize(buttonSize);
         loadButton.addActionListener(this);
-        mainPanel.add(loadButton);
+        controlPanel.add(loadButton);
 
         toggleViewButton = new JButton("Toggle View (S)");
         toggleViewButton.setPreferredSize(buttonSize);
         toggleViewButton.addActionListener(this);
-        mainPanel.add(toggleViewButton);
+        controlPanel.add(toggleViewButton);
 
         saveButton = new JButton("Save Output (P)");
         saveButton.setPreferredSize(buttonSize);
         saveButton.addActionListener(this);
-        mainPanel.add(saveButton);
+        controlPanel.add(saveButton);
 
         restartButton = new JButton("Restart Processing (R)");
         restartButton.setPreferredSize(buttonSize);
         restartButton.addActionListener(this);
-        mainPanel.add(restartButton);
-
-        // TextArea für Log-Ausgaben
-        logArea = new TextArea(10, 40);
-        logArea.setEditable(false);
-        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        logArea.setBackground(Color.BLACK);
-        logArea.setForeground(Color.WHITE);
-
-        mainPanel.add(new JScrollPane(logArea));
+        controlPanel.add(restartButton);
 
         // Panel für die Skalierungsauswahl
         JPanel scalePanel = new JPanel(new BorderLayout(5, 0));
@@ -88,7 +85,20 @@ public class ControlPanel extends JFrame implements ActionListener {
         scaleSelector.addActionListener(this);
         scalePanel.add(scaleSelector, BorderLayout.CENTER);
 
-        mainPanel.add(scalePanel);
+        controlPanel.add(scalePanel); // Add scalePanel to controlPanel
+
+        // Add controlPanel to the NORTH of mainPanel
+        mainPanel.add(controlPanel, BorderLayout.NORTH);
+
+        // TextArea für Log-Ausgaben
+        logArea = new TextArea(15, 50); // Adjusted size slightly
+        logArea.setEditable(false);
+        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        logArea.setBackground(Color.BLACK);
+        logArea.setForeground(Color.WHITE);
+
+        // Add logArea (in a JScrollPane) to the CENTER of mainPanel
+        mainPanel.add(new JScrollPane(logArea), BorderLayout.CENTER);
 
         // Panel zum Fenster hinzufügen
         add(mainPanel);
@@ -128,7 +138,7 @@ public class ControlPanel extends JFrame implements ActionListener {
                 p.keyPressed('l');
             }
         } catch (Exception ex) {
-            System.err.println("Fehler bei Button-Aktion: " + ex.getMessage());
+            Logger.println("Fehler bei Button-Aktion: " + ex.getMessage());
             ex.printStackTrace();
         }
     }
@@ -141,6 +151,22 @@ public class ControlPanel extends JFrame implements ActionListener {
     public void updateScaleSelector(int scale) {
         if (scale >= 1 && scale <= 8) {
             scaleSelector.setSelectedIndex(scale - 1);
+        }
+    }
+
+    public void appendLog(String message) {
+        logArea.append(message + "\n");
+    }
+
+    public static ControlPanel get() {
+        return Instance;
+    }
+
+    public static void log(String message) {
+        if (Instance != null) {
+            Instance.appendLog(message);
+        } else {
+            // Logger.println("ControlPanel ist nicht initialisiert.");
         }
     }
 }

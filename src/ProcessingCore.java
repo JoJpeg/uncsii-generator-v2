@@ -1,4 +1,3 @@
-import java.awt.Image;
 import java.io.File;
 import java.io.PrintWriter; // For saving the result
 import java.util.HashSet;
@@ -9,7 +8,9 @@ import java.util.Set;
 
 import processing.core.PApplet;
 import processing.core.PFont;
+import processing.core.PGraphics;
 import processing.core.PImage;
+import processing.event.MouseEvent;
 
 // Klasse ResultGlyph bleibt unverändert
 class ResultGlyph {
@@ -38,12 +39,17 @@ public class ProcessingCore extends PApplet {
 
     // --- Image & Conversion Variables ---
     PImage inputImage;
+    PGraphics resultingGlyph;
     ResultGlyph[][] resultGrid; // Verwendet jetzt die angepasste ResultGlyph Klasse
     int gridWidth;
     int gridHeight;
     String imagePath; // Wird in settings() gesetzt
     String outputPath = "output.usc"; // Standardausgabe
     int[] colorPalette; // Wird in setupPalette gefüllt
+
+    int drawW, drawH;
+    int drawX = (width - drawW) / 2;
+    int drawY = (height - drawH) / 2;
 
     // --- Display Variables ---
     int DISPLAY_SCALE = 2; // Skalierung für die *Ergebnis*-Anzeige (1 = 8x8 pro Char)
@@ -65,6 +71,7 @@ public class ProcessingCore extends PApplet {
 
     @Override
     public void settings() {
+        Logger.sysOut = true;
         // Fenstergröße definieren
         size(800, 480);
 
@@ -72,6 +79,10 @@ public class ProcessingCore extends PApplet {
 
     @Override
     public void setup() {
+
+        drawX = (width - drawW) / 2;
+        drawY = (height - drawH) / 2;
+
         unscii = createFont(fontPath, 8, true);
         background(0);
         textFont(unscii);
@@ -97,39 +108,39 @@ public class ProcessingCore extends PApplet {
         // --- Font Pattern Generierung ---
         float fontSize = 8; // Basierend auf früheren Tests
 
-        System.out.println("Generating glyph patterns..."); // Verwende System.out
+        Logger.println("Generating glyph patterns..."); // Verwende System.out
         try {
             patternGenerator = new GlyphPatternGenerator(this, fontPath, fontSize);
             asciiPatterns = patternGenerator.generatePatterns();
-            System.out.println("Generated " + asciiPatterns.size() + " patterns."); // Verwende System.out
+            Logger.println("Generated " + asciiPatterns.size() + " patterns."); // Verwende System.out
 
             if (asciiPatterns.isEmpty()) {
                 throw new RuntimeException("Pattern generation resulted in an empty map.");
             }
             int testCodePoint = 'A'; // Codepoint für 'A'
-            System.out.println("\nPattern for U+" + String.format("%04X", testCodePoint) + " ('A'):"); // Verwende
-                                                                                                       // System.out
+            Logger.println("\nPattern for U+" + String.format("%04X", testCodePoint) + " ('A'):"); // Verwende
+                                                                                                   // System.out
             if (asciiPatterns.containsKey(testCodePoint)) {
                 GlyphPatternGenerator.printPattern(asciiPatterns.get(testCodePoint));
             } else {
-                System.out.println("Pattern not found."); // Verwende System.out
+                Logger.println("Pattern not found."); // Verwende System.out
             }
 
         } catch (Exception e) {
-            System.err.println("Failed to initialize patterns: " + e.getMessage());
+            Logger.println("Failed to initialize patterns: " + e.getMessage());
             e.printStackTrace();
             exitActual(); // Korrekte Methode zum Beenden
         }
 
-        System.out.println("\n--- Conversion Setup ---"); // Verwende System.out
-        System.out.println(
+        Logger.println("\n--- Conversion Setup ---"); // Verwende System.out
+        Logger.println(
                 "Image loaded: " + (inputImage != null ? inputImage.width + "x" + inputImage.height : "Failed")); // Verwende
                                                                                                                   // System.out
-        System.out.println("Grid dimensions: " + gridWidth + "x" + gridHeight); // Verwende System.out
-        System.out.println("Total blocks: " + (gridWidth * gridHeight)); // Verwende System.out
-        System.out.println("Press 's' to switch between Source Image and ASCII Art."); // Verwende System.out
-        System.out.println("Press 'p' to save the result to 'output.usc' file."); // Verwende System.out
-        System.out.println("Press '1'-'8' to change display scale."); // Verwende System.out
+        Logger.println("Grid dimensions: " + gridWidth + "x" + gridHeight); // Verwende System.out
+        Logger.println("Total blocks: " + (gridWidth * gridHeight)); // Verwende System.out
+        Logger.println("Press 's' to switch between Source Image and ASCII Art."); // Verwende System.out
+        Logger.println("Press 'p' to save the result to 'output.usc' file."); // Verwende System.out
+        Logger.println("Press '1'-'8' to change display scale."); // Verwende System.out
 
         // Initialanzeige
         background(0);
@@ -140,7 +151,7 @@ public class ProcessingCore extends PApplet {
             int y = getJFrame().getY();
             controlPanel.setLocation(x, y);
         } catch (Exception e) {
-            System.err.println("Konnte Kontrollpanel nicht positionieren: " + e.getMessage());
+            Logger.println("Konnte Kontrollpanel nicht positionieren: " + e.getMessage());
         }
     }
 
@@ -148,17 +159,28 @@ public class ProcessingCore extends PApplet {
         // --- Bild laden und verarbeiten ---
         File imageFile = FileHandler.loadFile("Select Image");
         if (imageFile == null) {
-            System.out.println("No image file selected. Exiting.");
+            Logger.println("No image file selected. Exiting.");
             controlPanel.setState(ControlPanel.State.SETUP);
         }
         imagePath = imageFile.getAbsolutePath();
         loadAndProcessImage(imagePath);
         if (imageLoadingState == ImageLoadingState.ERROR) {
-            System.out.println("Error loading image. Exiting.");
+            Logger.println("Error loading image. Exiting.");
             controlPanel.setState(ControlPanel.State.SETUP);
             return;
         }
         controlPanel.setState(ControlPanel.State.EDIT); // Setze den Status auf EDIT
+    }
+
+    @Override
+    public void mouseDragged() {
+        int deltaX = mouseX - pmouseX;
+        int deltaY = mouseY - pmouseY;
+        drawX += deltaX;
+        drawY += deltaY;
+
+        // drawX = constrain(drawX, -width, width);
+        // drawY = constrain(drawY, -height, height);
     }
 
     @Override
@@ -168,34 +190,38 @@ public class ProcessingCore extends PApplet {
         if (showSourceImage && inputImage != null) {
             float imgAspect = (float) inputImage.width / inputImage.height;
             float canvasAspect = (float) width / height;
-            int drawW, drawH;
-
+            int cellWidth = GLYPH_WIDTH * DISPLAY_SCALE;
+            int cellHeight = GLYPH_HEIGHT * DISPLAY_SCALE;
+            int w = gridWidth * cellWidth;
+            int h = gridHeight * cellHeight;
             if (imgAspect > canvasAspect) {
-                drawW = width;
-                drawH = (int) (width / imgAspect);
+                drawW = w;
+                drawH = (int) (w / imgAspect);
             } else {
-                drawH = height;
-                drawW = (int) (height * imgAspect);
+                drawH = h;
+                drawW = (int) (h * imgAspect);
             }
-            int drawX = (width - drawW) / 2;
-            int drawY = (height - drawH) / 2;
-
-            image(inputImage, drawX, drawY, drawW, drawH);
+            // imageMode(CENTER);
+            image(inputImage, drawX - width / 2, drawY - height / 2, drawW, drawH);
+            imageMode(CORNER);
 
         } else if (resultGrid != null) {
+
             drawResult();
+
         } else {
-            fill(255, 0, 0);
-            textSize(20);
+            background(0);
+            textFont(unscii);
+            textSize(16);
             textAlign(CENTER, CENTER);
-            text("No result to display.", width / 2, height / 2);
+            text("Unscii Generator", width / 2, height / 2);
         }
     }
 
     void loadAndProcessImage(String path) {
         inputImage = loadImage(path);
         if (inputImage == null) {
-            System.err.println("Error loading image: " + path);
+            Logger.println("Error loading image: " + path);
             imageLoadingState = ImageLoadingState.ERROR;
             return;
         }
@@ -222,27 +248,27 @@ public class ProcessingCore extends PApplet {
         int croppedWidth = gridWidth * GLYPH_WIDTH;
         int croppedHeight = gridHeight * GLYPH_HEIGHT;
         if (croppedWidth != inputImage.width || croppedHeight != inputImage.height) {
-            System.out.println("Cropping image from " + inputImage.width + "x" + inputImage.height +
+            Logger.println("Cropping image from " + inputImage.width + "x" + inputImage.height +
                     " to " + croppedWidth + "x" + croppedHeight + " to fit grid."); // Verwende System.out
             inputImage = inputImage.get(0, 0, croppedWidth, croppedHeight);
             inputImage.loadPixels();
         }
 
         if (gridWidth == 0 || gridHeight == 0) {
-            System.err.println("Image too small after resizing/cropping for an 8x8 grid.");
+            Logger.println("Image too small after resizing/cropping for an 8x8 grid.");
             imageLoadingState = ImageLoadingState.ERROR;
             return;
         }
 
         resultGrid = new ResultGlyph[gridHeight][gridWidth];
 
-        System.out.println("Starting ASCII conversion...");
+        Logger.println("Starting ASCII conversion...");
         long startTime = System.currentTimeMillis();
 
         generateAsciiArtExact();
 
         long endTime = System.currentTimeMillis();
-        System.out.println("Conversion finished in " + (endTime - startTime) + " ms.");
+        Logger.println("Conversion finished in " + (endTime - startTime) + " ms.");
         imageLoadingState = ImageLoadingState.LOADED;
     }
 
@@ -312,7 +338,7 @@ public class ProcessingCore extends PApplet {
             } // Ende Schleife gridX
               // Optional: Fortschritt anzeigen
             if ((gridY + 1) % 10 == 0 || gridY == gridHeight - 1) {
-                System.out.println("Processed row " + (gridY + 1) + "/" + gridHeight); // Verwende System.out
+                Logger.println("Processed row " + (gridY + 1) + "/" + gridHeight); // Verwende System.out
             }
         } // Ende Schleife gridY
     }
@@ -365,7 +391,7 @@ public class ProcessingCore extends PApplet {
                 resultGrid[gridY][gridX] = new ResultGlyph(bestCodePoint, bestFgIndex, bestBgIndex);
             }
             if ((gridY + 1) % 10 == 0 || gridY == gridHeight - 1) {
-                System.out.println("Processed row " + (gridY + 1) + "/" + gridHeight);
+                Logger.println("Processed row " + (gridY + 1) + "/" + gridHeight);
             }
         }
     }
@@ -560,8 +586,8 @@ public class ProcessingCore extends PApplet {
                 int fgColor = colorPalette[glyphInfo.fgIndex];
                 int bgColor = colorPalette[glyphInfo.bgIndex];
 
-                int screenX = startDrawX + x * cellWidth;
-                int screenY = startDrawY + y * cellHeight;
+                int screenX = startDrawX + x * cellWidth + drawX - width / 2;
+                int screenY = startDrawY + y * cellHeight + drawY - height / 2;
 
                 displayScaledGlyph(pattern, screenX, screenY, DISPLAY_SCALE, bgColor, fgColor);
             }
@@ -574,7 +600,13 @@ public class ProcessingCore extends PApplet {
             for (int x = 0; x < GLYPH_WIDTH; x++) {
                 int bitIndex = y * GLYPH_WIDTH + x;
                 boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
-                fill(pixelOn ? fgCol : bgCol);
+                if (pixelOn) {
+                    fill(fgCol);
+                } else {
+                    fill(bgCol);
+
+                }
+
                 rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
             }
         }
@@ -582,11 +614,11 @@ public class ProcessingCore extends PApplet {
 
     void saveResultOldFormat(String filePath) {
         if (resultGrid == null) {
-            System.out.println("No result to save.");
+            Logger.println("No result to save.");
             return;
         }
 
-        System.out.println("Saving result to " + filePath + " ...");
+        Logger.println("Saving result to " + filePath + " ...");
         try (PrintWriter writer = createWriter(filePath)) {
             writer.println("TYPE=USCII_ART_V2_CODEPOINT");
             writer.println("WIDTH=" + gridWidth);
@@ -607,9 +639,9 @@ public class ProcessingCore extends PApplet {
                 writer.println(line.toString());
             }
             writer.flush();
-            System.out.println("Result saved successfully.");
+            Logger.println("Result saved successfully.");
         } catch (Exception e) {
-            System.err.println("Error saving result file: " + e.getMessage());
+            Logger.println("Error saving result file: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -619,22 +651,45 @@ public class ProcessingCore extends PApplet {
         keyPressed(key);
     }
 
+    public void mouseWheel(MouseEvent event) {
+        float e = event.getCount() / 2;
+        int currentScale = DISPLAY_SCALE;
+        if (e > 0) {
+            currentScale++;
+        } else if (e < 0) {
+            currentScale--;
+        }
+        if (currentScale < 1) {
+            currentScale = 1;
+        } else if (currentScale > 8) {
+            currentScale = 8;
+        }
+        log = false;
+        keyPressed((char) (currentScale + '0'));
+        log = true;
+    }
+
+    boolean log = true;
+
     public void keyPressed(char k) {
         if (k == 's' || k == 'S') {
             showSourceImage = !showSourceImage;
-            System.out.println("Toggled view: " + (showSourceImage ? "Source Image" : "ASCII Art"));
+            Logger.println("Toggled view: " + (showSourceImage ? "Source Image" : "ASCII Art"));
         } else if (k == 'p' || k == 'P') {
             File outputFile = FileHandler.saveFile("Save Result");
             if (outputFile == null) {
-                System.out.println("No file selected for saving.");
+                Logger.println("No file selected for saving.");
                 return;
             }
             outputPath = outputFile.getAbsolutePath();
             FileHandler.saveResult(outputPath, this);
         } else if (k >= '1' && k <= '8') {
             DISPLAY_SCALE = k - '0';
-            System.out.println("Set display scale to: " + DISPLAY_SCALE);
 
+            if (log)
+                Logger.println("Set display scale to: " + DISPLAY_SCALE);
+            drawX = width / 2;
+            drawY = height / 2;
             if (controlPanel != null) {
                 controlPanel.updateScaleSelector(DISPLAY_SCALE);
             }
@@ -736,7 +791,7 @@ public class ProcessingCore extends PApplet {
                 color(228, 228, 228), color(238, 238, 238)
         };
         if (colorPalette.length != 256) {
-            System.err.println("WARNING: Color Palette size is not 256!");
+            Logger.println("WARNING: Color Palette size is not 256!");
         }
     }
 
@@ -765,7 +820,7 @@ public class ProcessingCore extends PApplet {
         try {
             PApplet.main(new String[] { "ProcessingCore" });
         } catch (Exception e) {
-            System.err.println("Fehler beim Starten der Anwendung: " + e.getMessage());
+            Logger.println("Fehler beim Starten der Anwendung: " + e.getMessage());
             e.printStackTrace();
         }
     }

@@ -55,9 +55,9 @@ public class FileHandler {
     public static void setLastAsWorkingDirectory() {
         if (lastSelection != null) {
             workingDir = lastSelection.getAbsolutePath();
-            System.out.println("Working directory set to: " + workingDir);
+            Logger.println("Working directory set to: " + workingDir);
         } else {
-            System.out.println("No file selected, working directory not set.");
+            Logger.println("No file selected, working directory not set.");
         }
 
     }
@@ -65,15 +65,15 @@ public class FileHandler {
     public static void saveResult(String filePath, ProcessingCore p) {
         filePath = filePath + "2";
         if (p.resultGrid == null) {
-            System.out.println("No result to save.");
+            Logger.println("No result to save.");
             return;
         }
         if (p.gridWidth <= 0 || p.gridHeight <= 0) {
-            System.out.println("Invalid grid dimensions, cannot save.");
+            Logger.println("Invalid grid dimensions, cannot save.");
             return;
         }
 
-        System.out.println("Saving result to " + filePath + " (filtering control chars)...");
+        Logger.println("Saving result to " + filePath + " (filtering control chars)...");
 
         try (FileOutputStream fos = new FileOutputStream(filePath);
                 OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8);
@@ -127,10 +127,10 @@ public class FileHandler {
             }
 
             writer.flush();
-            System.out.println("Result saved successfully in V3 format (control chars filtered).");
+            Logger.println("Result saved successfully in V3 format (control chars filtered).");
 
         } catch (Exception e) {
-            System.err.println("Error saving result file: " + e.getMessage());
+            Logger.println("Error saving result file: " + e.getMessage());
             e.printStackTrace();
         }
     }

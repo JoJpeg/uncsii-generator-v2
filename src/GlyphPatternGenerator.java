@@ -39,7 +39,7 @@ public class GlyphPatternGenerator {
             }
 
         } catch (Exception e) {
-            System.err.println("Error loading font or getting native font: " + fontPath);
+            Logger.println("Error loading font or getting native font: " + fontPath);
             throw new RuntimeException(e);
         }
 
@@ -55,7 +55,7 @@ public class GlyphPatternGenerator {
         this.glyphRenderer.background(0); // Schwarz (Pixel 'aus')
         this.glyphRenderer.fill(255); // Weiß (Pixel 'an')
         this.glyphRenderer.endDraw();
-        System.out.println("GlyphRenderer prepared with font: " + this.nativeFont.getFontName() + ", size "
+        Logger.println("GlyphRenderer prepared with font: " + this.nativeFont.getFontName() + ", size "
                 + this.glyphRenderer.textFont.getSize());
 
     }
@@ -70,7 +70,7 @@ public class GlyphPatternGenerator {
         Map<Integer, Long> patterns = new HashMap<>();
         int glyphCount = 0;
 
-        System.out.println("Scanning Unicode range U+" + String.format("%04X", MIN_CODEPOINT) +
+        Logger.println("Scanning Unicode range U+" + String.format("%04X", MIN_CODEPOINT) +
                 " to U+" + String.format("%04X", MAX_CODEPOINT) + " for displayable glyphs...");
 
         for (int codePoint = MIN_CODEPOINT; codePoint <= MAX_CODEPOINT; codePoint++) {
@@ -81,7 +81,7 @@ public class GlyphPatternGenerator {
                 // (außer speziellen wie Leerzeichen, die wichtig sein könnten)
                 if (Character.isISOControl(codePoint) && !Character.isWhitespace(codePoint)) {
                     // Optional: Loggen, welche übersprungen werden
-                    // System.out.println("Skipping control character: U+" + String.format("%04X",
+                    // Logger.println("Skipping control character: U+" + String.format("%04X",
                     // codePoint));
                     continue;
                 }
@@ -123,7 +123,7 @@ public class GlyphPatternGenerator {
                     glyphCount++;
                 } else {
                     // Optional: Loggen, welche Codepoints leere Glyphen erzeugt haben
-                    // System.out.println("Skipping empty glyph for U+" + String.format("%04X",
+                    // Logger.println("Skipping empty glyph for U+" + String.format("%04X",
                     // codePoint));
                 }
 
@@ -135,8 +135,8 @@ public class GlyphPatternGenerator {
             } // end if canDisplay
         } // end for codePoint
 
-        System.out.println("\nFinished scanning.");
-        System.out.println("Found and generated patterns for " + glyphCount + " glyphs.");
+        Logger.println("\nFinished scanning.");
+        Logger.println("Found and generated patterns for " + glyphCount + " glyphs.");
 
         // Füge manuell ein leeres Pattern für Codepoint 0 hinzu, falls es fehlt
         // (Kann manchmal als Fallback nützlich sein)
@@ -159,7 +159,7 @@ public class GlyphPatternGenerator {
                     System.out.print(".");
                 }
             }
-            System.out.println();
+            Logger.println();
         }
     }
 }
