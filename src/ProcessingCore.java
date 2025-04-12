@@ -774,24 +774,25 @@ public class ProcessingCore extends PApplet {
     }
 
     public void mouseWheel(MouseEvent event) {
-        float e = event.getCount() / 2;
+        float e = event.getCount(); // Use raw count, adjust sensitivity if needed
         int currentScale = DISPLAY_SCALE;
-        if (e > 0) {
-            currentScale++;
-        } else if (e < 0) {
-            currentScale--;
-        }
-        if (currentScale < 1) {
-            currentScale = 1;
-        } else if (currentScale > 8) {
-            currentScale = 8;
-        }
-        log = false;
-        keyPressed((char) (currentScale + '0'));
-        log = true;
-    }
 
-    boolean log = true;
+        // Determine target scale based on scroll direction
+        int targetScale = currentScale;
+        if (e < 0) { // Scroll Up / Zoom In
+            targetScale++;
+        } else if (e > 0) { // Scroll Down / Zoom Out
+            targetScale--;
+        }
+
+        // Clamp scale between 1 and 8
+        targetScale = constrain(targetScale, 1, 8);
+
+        // Apply the new scale if it changed
+        if (targetScale != currentScale) {
+            setDisplayScale(targetScale);
+        }
+    }
 
     public void keyPressed(char k) {
         if (k == 's' || k == 'S') {
@@ -806,23 +807,62 @@ public class ProcessingCore extends PApplet {
             outputPath = outputFile.getAbsolutePath();
             FileHandler.saveResult(outputPath, this);
         } else if (k >= '1' && k <= '8') {
-            DISPLAY_SCALE = k - '0';
-
-            if (log)
-                Logger.println("Set display scale to: " + DISPLAY_SCALE);
-            drawX = width / 2;
-            drawY = height / 2;
-            // if (controlPanel != null) {
-            // controlPanel.updateScaleSelector(DISPLAY_SCALE);
-            // }
+            int targetScale = k - '0';
+            setDisplayScale(targetScale);
         } else if (k == 'r' || k == 'R') {
-            fill(128);
-            textSize(32);
-            textAlign(CENTER, CENTER);
-            text("Restarting...", width / 2, height / 2);
-            loadAndProcessImage(imagePath);
+            if (imagePath != null && !imagePath.isEmpty()) {
+                fill(128);
+                textSize(32);
+                textAlign(CENTER, CENTER);
+                text("Reloading...", width / 2, height / 2);
+                loadAndProcessImage(imagePath);
+            } else {
+                Logger.println("No image path set to reload.");
+            }
         } else if (k == 'l' || k == 'L') {
             loadImage();
+        }
+    }
+
+    private void setDisplayScale(int newScale) {
+        newScale = constrain(newScale, 1, 8);
+
+        if (newScale == DISPLAY_SCALE || resultGrid == null) {
+            if (controlPanel != null) {
+                controlPanel.updateScaleSelector(newScale);
+            }
+            DISPLAY_SCALE = newScale;
+            return;
+        }
+
+        int oldScale = DISPLAY_SCALE;
+
+        float oldCellW = GLYPH_WIDTH * oldScale;
+        float oldCellH = GLYPH_HEIGHT * oldScale;
+        float oldTotalW = gridWidth * oldCellW;
+        float oldTotalH = gridHeight * oldCellH;
+        float oldGridOriginX = (width - oldTotalW) / 2f + drawX - width / 2f;
+        float oldGridOriginY = (height - oldTotalH) / 2f + drawY - height / 2f;
+
+        float worldX = (mouseX - oldGridOriginX) / oldScale;
+        float worldY = (mouseY - oldGridOriginY) / oldScale;
+
+        DISPLAY_SCALE = newScale;
+        Logger.println("Set display scale to: " + DISPLAY_SCALE);
+
+        float newCellW = GLYPH_WIDTH * newScale;
+        float newCellH = GLYPH_HEIGHT * newScale;
+        float newTotalW = gridWidth * newCellW;
+        float newTotalH = gridHeight * newCellH;
+
+        float newDrawX = mouseX - worldX * newScale - (width - newTotalW) / 2f + width / 2f;
+        float newDrawY = mouseY - worldY * newScale - (height - newTotalH) / 2f + height / 2f;
+
+        drawX = round(newDrawX);
+        drawY = round(newDrawY);
+
+        if (controlPanel != null) {
+            controlPanel.updateScaleSelector(DISPLAY_SCALE);
         }
     }
 

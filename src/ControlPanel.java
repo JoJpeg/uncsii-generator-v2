@@ -285,6 +285,29 @@ public class ControlPanel extends JFrame implements ActionListener {
         }
     }
 
+    /**
+     * Aktualisiert den ausgewählten Skalierungsfaktor im UI, ohne einen ActionEvent auszulösen.
+     * Wird von ProcessingCore aufgerufen, wenn die Skala per Tastatur/Mausrad geändert wird.
+     *
+     * @param scale Der aktuelle Skalierungsfaktor (1-8)
+     */
+    public void updateScaleSelector(int scale) {
+        if (scale >= 1 && scale <= 8 && scaleSelector.getSelectedIndex() != (scale - 1)) {
+            // Temporär den Listener entfernen, um Endlosschleife zu vermeiden
+            ActionListener[] listeners = scaleSelector.getActionListeners();
+            for (ActionListener l : listeners) {
+                scaleSelector.removeActionListener(l);
+            }
+
+            scaleSelector.setSelectedIndex(scale - 1);
+
+            // Listener wieder hinzufügen
+            for (ActionListener l : listeners) {
+                scaleSelector.addActionListener(l);
+            }
+        }
+    }
+
     public void appendLog(String message) {
         if (SwingUtilities.isEventDispatchThread()) {
             logArea.append(message + "\n");
