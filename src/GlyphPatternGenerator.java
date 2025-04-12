@@ -1,7 +1,11 @@
-import processing.core.*;
 import java.awt.Font; // Import für java.awt.Font
 import java.util.HashMap;
 import java.util.Map;
+
+import processing.core.PApplet;
+import processing.core.PConstants;
+import processing.core.PFont;
+import processing.core.PGraphics;
 
 public class GlyphPatternGenerator {
 
@@ -11,7 +15,7 @@ public class GlyphPatternGenerator {
     private PGraphics glyphRenderer;
     private final int GLYPH_WIDTH = 8;
     private final int GLYPH_HEIGHT = 8;
-    private final int PIXEL_COUNT = GLYPH_WIDTH * GLYPH_HEIGHT;
+    // private final int PIXEL_COUNT = GLYPH_WIDTH * GLYPH_HEIGHT;
     private final float BRIGHTNESS_THRESHOLD = 128.0f;
 
     // Unicode-Bereich zum Scannen (0 bis BMP Ende)

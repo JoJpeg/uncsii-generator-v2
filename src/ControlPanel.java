@@ -9,13 +9,20 @@ import java.awt.event.ActionListener;
  */
 public class ControlPanel extends JFrame implements ActionListener {
 
-    private final ProcessingCore processingCore;
+    private final ProcessingCore p;
 
     // Buttons
+    private JButton loadButton;
     private JButton toggleViewButton;
     private JButton saveButton;
     private JButton restartButton;
     private JComboBox<String> scaleSelector;
+    private TextArea logArea;
+
+    public enum State {
+        SETUP,
+        EDIT,
+    }
 
     /**
      * Erstellt ein neues Kontrollfenster für die ProcessingCore-Anwendung.
@@ -26,7 +33,7 @@ public class ControlPanel extends JFrame implements ActionListener {
         if (core == null) {
             throw new IllegalArgumentException("ProcessingCore darf nicht null sein");
         }
-        this.processingCore = core;
+        this.p = core;
 
         // Fenster-Konfiguration
         setTitle("ASCII Art Controls");
@@ -38,18 +45,37 @@ public class ControlPanel extends JFrame implements ActionListener {
         mainPanel.setLayout(new GridLayout(0, 1, 5, 5));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+        Dimension buttonSize = new Dimension(200, 30);
+
         // Komponenten erstellen
+        loadButton = new JButton("Load File (L)");
+        loadButton.setPreferredSize(buttonSize);
+        loadButton.addActionListener(this);
+        mainPanel.add(loadButton);
+
         toggleViewButton = new JButton("Toggle View (S)");
+        toggleViewButton.setPreferredSize(buttonSize);
         toggleViewButton.addActionListener(this);
         mainPanel.add(toggleViewButton);
 
         saveButton = new JButton("Save Output (P)");
+        saveButton.setPreferredSize(buttonSize);
         saveButton.addActionListener(this);
         mainPanel.add(saveButton);
 
         restartButton = new JButton("Restart Processing (R)");
+        restartButton.setPreferredSize(buttonSize);
         restartButton.addActionListener(this);
         mainPanel.add(restartButton);
+
+        // TextArea für Log-Ausgaben
+        logArea = new TextArea(10, 40);
+        logArea.setEditable(false);
+        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        logArea.setBackground(Color.BLACK);
+        logArea.setForeground(Color.WHITE);
+
+        mainPanel.add(new JScrollPane(logArea));
 
         // Panel für die Skalierungsauswahl
         JPanel scalePanel = new JPanel(new BorderLayout(5, 0));
@@ -72,18 +98,34 @@ public class ControlPanel extends JFrame implements ActionListener {
         setLocationRelativeTo(null); // Zentrieren auf dem Bildschirm
     }
 
+    public void setState(State state) {
+        if (state == State.SETUP) {
+            toggleViewButton.setEnabled(false);
+            saveButton.setEnabled(false);
+            restartButton.setEnabled(false);
+            scaleSelector.setEnabled(false);
+        } else if (state == State.EDIT) {
+            toggleViewButton.setEnabled(true);
+            saveButton.setEnabled(true);
+            restartButton.setEnabled(true);
+            scaleSelector.setEnabled(true);
+        }
+    }
+
     @Override
     public void actionPerformed(ActionEvent e) {
         try {
             if (e.getSource() == toggleViewButton) {
-                processingCore.keyPressed('s');
+                p.keyPressed('s');
             } else if (e.getSource() == saveButton) {
-                processingCore.keyPressed('p');
+                p.keyPressed('p');
             } else if (e.getSource() == restartButton) {
-                processingCore.keyPressed('r');
+                p.keyPressed('r');
             } else if (e.getSource() == scaleSelector) {
                 int selectedScale = scaleSelector.getSelectedIndex() + 1;
-                processingCore.keyPressed((char) ('0' + selectedScale));
+                p.keyPressed((char) ('0' + selectedScale));
+            } else if (e.getSource() == loadButton) {
+                p.keyPressed('l');
             }
         } catch (Exception ex) {
             System.err.println("Fehler bei Button-Aktion: " + ex.getMessage());

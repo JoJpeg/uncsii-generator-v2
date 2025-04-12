@@ -1,8 +1,6 @@
+import java.awt.Image;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter; // For saving the result
-import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -10,6 +8,7 @@ import java.util.Set;
 // Hinweis: Entfernt, da nicht im Code verwendet: import com.jogamp.newt.Display;
 
 import processing.core.PApplet;
+import processing.core.PFont;
 import processing.core.PImage;
 
 // Klasse ResultGlyph bleibt unverändert
@@ -35,6 +34,7 @@ public class ProcessingCore extends PApplet {
     final int PIXEL_COUNT = GLYPH_WIDTH * GLYPH_HEIGHT;
     final int displayAreaWidth = 400; // Angepasst an size() Breite
     final int displayAreaHeight = 240; // Angepasst an size() Höhe
+    String fontPath = "/Users/jonaseschner/IdeaProjects/unscii-generator/src/resources/unscii-8.ttf";
 
     // --- Image & Conversion Variables ---
     PImage inputImage;
@@ -49,6 +49,17 @@ public class ProcessingCore extends PApplet {
     int DISPLAY_SCALE = 2; // Skalierung für die *Ergebnis*-Anzeige (1 = 8x8 pro Char)
     boolean showSourceImage = false; // Zum Umschalten der Anzeige
 
+    public enum ImageLoadingState {
+        NONE,
+        LOADING,
+        LOADED,
+        ERROR
+    }
+
+    ImageLoadingState imageLoadingState = ImageLoadingState.NONE;
+
+    PFont unscii;
+
     // --- Control Panel Variable ---
     private ControlPanel controlPanel;
 
@@ -56,11 +67,23 @@ public class ProcessingCore extends PApplet {
     public void settings() {
         // Fenstergröße definieren
         size(800, 480);
-        noSmooth(); // Wichtig für Pixel-Look
+
     }
 
     @Override
     public void setup() {
+        unscii = createFont(fontPath, 8, true);
+        background(0);
+        textFont(unscii);
+        textSize(16);
+        textAlign(CENTER, CENTER);
+        text("Unscii Generator", width / 2, height / 2);
+        noSmooth(); // Wichtig für Pixel-Look
+        // Erstelle und zeige das Kontrollpanel an
+        controlPanel = new ControlPanel(this);
+        controlPanel.setVisible(true);
+        controlPanel.setState(ControlPanel.State.SETUP); // Setze den Status auf SETUP
+
         noSmooth();
         setupPalette(); // Farbpalette initialisieren
         imagePath = "/Users/jonaseschner/Dropbox (Privat)/Ambient Mean/Xorm/Hypno Flute/renders/visual ready/16_9/hypno in flower.png";
@@ -72,7 +95,6 @@ public class ProcessingCore extends PApplet {
         outputPath = "Dirigent Xorm Screen 1.usc";
 
         // --- Font Pattern Generierung ---
-        String fontPath = "/Users/jonaseschner/IdeaProjects/unscii-generator/src/resources/unscii-8.ttf";
         float fontSize = 8; // Basierend auf früheren Tests
 
         System.out.println("Generating glyph patterns..."); // Verwende System.out
@@ -99,10 +121,6 @@ public class ProcessingCore extends PApplet {
             exitActual(); // Korrekte Methode zum Beenden
         }
 
-        // --- Bild laden und verarbeiten ---
-        imagePath = FileHandler.getFileJ("Select Image").getAbsolutePath();
-        loadAndProcessImage(imagePath);
-
         System.out.println("\n--- Conversion Setup ---"); // Verwende System.out
         System.out.println(
                 "Image loaded: " + (inputImage != null ? inputImage.width + "x" + inputImage.height : "Failed")); // Verwende
@@ -116,10 +134,6 @@ public class ProcessingCore extends PApplet {
         // Initialanzeige
         background(0);
 
-        // Erstelle und zeige das Kontrollpanel an
-        controlPanel = new ControlPanel(this);
-        controlPanel.setVisible(true);
-
         // Positioniere das Kontrollpanel rechts neben dem Hauptfenster
         try {
             int x = getJFrame().getX() + getJFrame().getWidth();
@@ -128,6 +142,23 @@ public class ProcessingCore extends PApplet {
         } catch (Exception e) {
             System.err.println("Konnte Kontrollpanel nicht positionieren: " + e.getMessage());
         }
+    }
+
+    public void loadImage() {
+        // --- Bild laden und verarbeiten ---
+        File imageFile = FileHandler.loadFile("Select Image");
+        if (imageFile == null) {
+            System.out.println("No image file selected. Exiting.");
+            controlPanel.setState(ControlPanel.State.SETUP);
+        }
+        imagePath = imageFile.getAbsolutePath();
+        loadAndProcessImage(imagePath);
+        if (imageLoadingState == ImageLoadingState.ERROR) {
+            System.out.println("Error loading image. Exiting.");
+            controlPanel.setState(ControlPanel.State.SETUP);
+            return;
+        }
+        controlPanel.setState(ControlPanel.State.EDIT); // Setze den Status auf EDIT
     }
 
     @Override
@@ -165,6 +196,7 @@ public class ProcessingCore extends PApplet {
         inputImage = loadImage(path);
         if (inputImage == null) {
             System.err.println("Error loading image: " + path);
+            imageLoadingState = ImageLoadingState.ERROR;
             return;
         }
         inputImage.loadPixels();
@@ -198,6 +230,7 @@ public class ProcessingCore extends PApplet {
 
         if (gridWidth == 0 || gridHeight == 0) {
             System.err.println("Image too small after resizing/cropping for an 8x8 grid.");
+            imageLoadingState = ImageLoadingState.ERROR;
             return;
         }
 
@@ -210,6 +243,7 @@ public class ProcessingCore extends PApplet {
 
         long endTime = System.currentTimeMillis();
         System.out.println("Conversion finished in " + (endTime - startTime) + " ms.");
+        imageLoadingState = ImageLoadingState.LOADED;
     }
 
     void generateAsciiArtExact() {
@@ -580,79 +614,6 @@ public class ProcessingCore extends PApplet {
         }
     }
 
-    void saveResult(String filePath) {
-        filePath = filePath + "2";
-        if (resultGrid == null) {
-            System.out.println("No result to save.");
-            return;
-        }
-        if (gridWidth <= 0 || gridHeight <= 0) {
-            System.out.println("Invalid grid dimensions, cannot save.");
-            return;
-        }
-
-        System.out.println("Saving result to " + filePath + " (filtering control chars)...");
-
-        try (FileOutputStream fos = new FileOutputStream(filePath);
-                OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8);
-                PrintWriter writer = new PrintWriter(osw)) {
-
-            writer.println("TYPE=USCII_ART_V3_SEPARATED");
-            writer.println("WIDTH=" + gridWidth);
-            writer.println("HEIGHT=" + gridHeight);
-            writer.println("COLORS=xterm256");
-            writer.println("DATA_FORMAT=CHARS_GRID; FG_BG_GRID");
-            writer.println();
-
-            writer.println("CHARS");
-            for (int y = 0; y < gridHeight; y++) {
-                StringBuilder charLine = new StringBuilder(gridWidth);
-                for (int x = 0; x < gridWidth; x++) {
-                    ResultGlyph g = resultGrid[y][x];
-                    if (g != null) {
-                        int cp = g.codePoint;
-
-                        if (cp == 0) {
-                            charLine.append(' ');
-                        } else if (Character.isISOControl(cp) && !Character.isWhitespace(cp)) {
-                            charLine.append('.');
-                        } else {
-                            charLine.append(Character.toString(cp));
-                        }
-                    } else {
-                        charLine.append('?');
-                    }
-                }
-                writer.println(charLine.toString());
-            }
-            writer.println();
-
-            writer.println("COLORS");
-            for (int y = 0; y < gridHeight; y++) {
-                StringBuilder colorLine = new StringBuilder(gridWidth * 8);
-                for (int x = 0; x < gridWidth; x++) {
-                    ResultGlyph g = resultGrid[y][x];
-                    if (g != null) {
-                        colorLine.append(g.fgIndex).append(" ").append(g.bgIndex);
-                    } else {
-                        colorLine.append("0 0");
-                    }
-                    if (x < gridWidth - 1) {
-                        colorLine.append(" ");
-                    }
-                }
-                writer.println(colorLine.toString());
-            }
-
-            writer.flush();
-            System.out.println("Result saved successfully in V3 format (control chars filtered).");
-
-        } catch (Exception e) {
-            System.err.println("Error saving result file: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
     @Override
     public void keyPressed() {
         keyPressed(key);
@@ -663,7 +624,13 @@ public class ProcessingCore extends PApplet {
             showSourceImage = !showSourceImage;
             System.out.println("Toggled view: " + (showSourceImage ? "Source Image" : "ASCII Art"));
         } else if (k == 'p' || k == 'P') {
-            saveResult(outputPath);
+            File outputFile = FileHandler.saveFile("Save Result");
+            if (outputFile == null) {
+                System.out.println("No file selected for saving.");
+                return;
+            }
+            outputPath = outputFile.getAbsolutePath();
+            FileHandler.saveResult(outputPath, this);
         } else if (k >= '1' && k <= '8') {
             DISPLAY_SCALE = k - '0';
             System.out.println("Set display scale to: " + DISPLAY_SCALE);
@@ -677,6 +644,8 @@ public class ProcessingCore extends PApplet {
             textAlign(CENTER, CENTER);
             text("Restarting...", width / 2, height / 2);
             loadAndProcessImage(imagePath);
+        } else if (k == 'l' || k == 'L') {
+            loadImage();
         }
     }
 
@@ -768,14 +737,6 @@ public class ProcessingCore extends PApplet {
         };
         if (colorPalette.length != 256) {
             System.err.println("WARNING: Color Palette size is not 256!");
-        }
-    }
-
-    void fileSelected(File selection) {
-        if (selection == null) {
-            FileHandler.handle(null);
-        } else {
-            FileHandler.handle(selection);
         }
     }
 
