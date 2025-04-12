@@ -54,6 +54,14 @@ public class ProcessingCore extends PApplet {
     // --- Display Variables ---
     int DISPLAY_SCALE = 2; // Skalierung für die *Ergebnis*-Anzeige (1 = 8x8 pro Char)
     boolean showSourceImage = false; // Zum Umschalten der Anzeige
+    // Hover selection
+    int mouseGridX = -1; // X-Koordinate der Zelle unter dem Mauszeiger
+    int mouseGridY = -1; // Y-Koordinate der Zelle unter dem Mauszeiger
+    ResultGlyph selectedGlyph = null; // Glyph unter dem Mauszeiger
+    // Clicked selection
+    int clickedGridX = -1; // X-Koordinate der geklickten Zelle
+    int clickedGridY = -1; // Y-Koordinate der geklickten Zelle
+    ResultGlyph clickedGlyph = null; // Glyph der geklickten Zelle
 
     public enum ImageLoadingState {
         NONE,
@@ -174,13 +182,64 @@ public class ProcessingCore extends PApplet {
 
     @Override
     public void mouseDragged() {
-        int deltaX = mouseX - pmouseX;
-        int deltaY = mouseY - pmouseY;
-        drawX += deltaX;
-        drawY += deltaY;
+        // Only pan if left mouse button is held (or adjust as needed)
+        if (mouseButton == LEFT) {
+            int deltaX = mouseX - pmouseX;
+            int deltaY = mouseY - pmouseY;
+            drawX += deltaX;
+            drawY += deltaY;
+        }
+        // Prevent selecting text in ControlPanel logArea during drag
+        // if (controlPanel != null) {
+        // controlPanel.getLogArea().getSelectionStart(); // Just accessing seems to
+        // help sometimes
+        // controlPanel.getLogArea().select(0,0);
+        // }
+    }
 
-        // drawX = constrain(drawX, -width, width);
-        // drawY = constrain(drawY, -height, height);
+    @Override
+    public void mousePressed() {
+        // Check if the click is within the result grid area when it's displayed
+        if (!showSourceImage && resultGrid != null) {
+            int cellWidth = GLYPH_WIDTH * DISPLAY_SCALE;
+            int cellHeight = GLYPH_HEIGHT * DISPLAY_SCALE;
+            int totalGridWidthPixels = gridWidth * cellWidth;
+            int totalGridHeightPixels = gridHeight * cellHeight;
+            int gridOriginX = (width - totalGridWidthPixels) / 2 + drawX - width / 2;
+            int gridOriginY = (height - totalGridHeightPixels) / 2 + drawY - height / 2;
+
+            int mouseRelativeX = mouseX - gridOriginX;
+            int mouseRelativeY = mouseY - gridOriginY;
+
+            int gridClickX = mouseRelativeX / cellWidth;
+            int gridClickY = mouseRelativeY / cellHeight;
+
+            // Check if the click is within the valid grid boundaries
+            if (mouseRelativeX >= 0 && mouseRelativeX < totalGridWidthPixels &&
+                    mouseRelativeY >= 0 && mouseRelativeY < totalGridHeightPixels &&
+                    gridClickX >= 0 && gridClickX < gridWidth &&
+                    gridClickY >= 0 && gridClickY < gridHeight) {
+                // Update clicked selection state
+                clickedGridX = gridClickX;
+                clickedGridY = gridClickY;
+                clickedGlyph = resultGrid[clickedGridY][clickedGridX];
+
+                // Update the control panel with the clicked info
+                if (controlPanel != null) {
+                    controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph);
+                }
+                Logger.println("Clicked cell: X=" + clickedGridX + ", Y=" + clickedGridY);
+
+            } else {
+                // Optional: Clear clicked selection if clicking outside the grid
+                // clickedGridX = -1;
+                // clickedGridY = -1;
+                // clickedGlyph = null;
+                // if (controlPanel != null) {
+                // controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph);
+                // }
+            }
+        }
     }
 
     @Override
@@ -201,12 +260,21 @@ public class ProcessingCore extends PApplet {
                 drawH = h;
                 drawW = (int) (h * imgAspect);
             }
-            // imageMode(CENTER);
             image(inputImage, drawX - width / 2, drawY - height / 2, drawW, drawH);
             imageMode(CORNER);
 
-        } else if (resultGrid != null) {
+            // Clear selection info when showing source image
+            if (controlPanel != null) {
+                controlPanel.updateSelectionInfo(-1, -1, null);
+                // Keep clicked info displayed even when source is shown? Or clear?
+                // controlPanel.updateClickedInfo(-1, -1, null); // Uncomment to clear clicked
+                // info too
+            }
+            mouseGridX = -1;
+            mouseGridY = -1;
+            selectedGlyph = null;
 
+        } else if (resultGrid != null) {
             drawResult();
 
         } else {
@@ -346,12 +414,15 @@ public class ProcessingCore extends PApplet {
     // Alternative Methode: Nur Annäherung (falls Exakt-Check nicht gewünscht oder
     // zu langsam)
     void generateAsciiArtApproxOnly() {
+        // Corrected outer loop condition: gridY < gridHeight
         for (int gridY = 0; gridY < gridHeight; gridY++) {
-            for (int gridX = 0; gridWidth < gridWidth; gridX++) {
+            // Corrected inner loop condition: gridX < gridWidth
+            for (int gridX = 0; gridX < gridWidth; gridX++) {
                 int[] blockPixels = new int[PIXEL_COUNT];
                 int startX = gridX * GLYPH_WIDTH;
                 int startY = gridY * GLYPH_HEIGHT;
                 for (int y = 0; y < GLYPH_HEIGHT; y++) {
+                    // Corrected innermost loop condition: x < GLYPH_WIDTH
                     for (int x = 0; x < GLYPH_WIDTH; x++) {
                         blockPixels[y * GLYPH_WIDTH + x] = inputImage.pixels[(startY + y) * inputImage.width
                                 + (startX + x)];
@@ -573,24 +644,75 @@ public class ProcessingCore extends PApplet {
 
         int totalGridWidthPixels = gridWidth * cellWidth;
         int totalGridHeightPixels = gridHeight * cellHeight;
-        int startDrawX = (width - totalGridWidthPixels) / 2;
-        int startDrawY = (height - totalGridHeightPixels) / 2;
+        int gridOriginX = (width - totalGridWidthPixels) / 2 + drawX - width / 2;
+        int gridOriginY = (height - totalGridHeightPixels) / 2 + drawY - height / 2;
 
+        // Draw all glyphs
         for (int y = 0; y < gridHeight; y++) {
             for (int x = 0; x < gridWidth; x++) {
                 ResultGlyph glyphInfo = resultGrid[y][x];
                 if (glyphInfo == null)
                     continue;
-
                 long pattern = asciiPatterns.getOrDefault(glyphInfo.codePoint, 0L);
                 int fgColor = colorPalette[glyphInfo.fgIndex];
                 int bgColor = colorPalette[glyphInfo.bgIndex];
-
-                int screenX = startDrawX + x * cellWidth + drawX - width / 2;
-                int screenY = startDrawY + y * cellHeight + drawY - height / 2;
-
+                int screenX = gridOriginX + x * cellWidth;
+                int screenY = gridOriginY + y * cellHeight;
                 displayScaledGlyph(pattern, screenX, screenY, DISPLAY_SCALE, bgColor, fgColor);
             }
+        }
+
+        // --- Hover Highlight ---
+        int mouseRelativeX = mouseX - gridOriginX;
+        int mouseRelativeY = mouseY - gridOriginY;
+        int currentMouseGridX = mouseRelativeX / cellWidth; // Use local vars for calculation
+        int currentMouseGridY = mouseRelativeY / cellHeight;
+
+        boolean hoverValid = mouseRelativeX >= 0 && mouseRelativeX < totalGridWidthPixels &&
+                mouseRelativeY >= 0 && mouseRelativeY < totalGridHeightPixels &&
+                currentMouseGridX >= 0 && currentMouseGridX < gridWidth &&
+                currentMouseGridY >= 0 && currentMouseGridY < gridHeight;
+
+        if (hoverValid) {
+            // Update hover state
+            this.mouseGridX = currentMouseGridX;
+            this.mouseGridY = currentMouseGridY;
+            this.selectedGlyph = resultGrid[this.mouseGridY][this.mouseGridX];
+
+            // Update Control Panel (Hover Info)
+            if (controlPanel != null) {
+                controlPanel.updateSelectionInfo(this.mouseGridX, this.mouseGridY, this.selectedGlyph);
+            }
+
+            // Draw Hover Highlight Rectangle
+            int highlightX = gridOriginX + this.mouseGridX * cellWidth;
+            int highlightY = gridOriginY + this.mouseGridY * cellHeight;
+            noFill();
+            stroke(255, 255, 0); // Yellow outline for hover
+            strokeWeight(1);
+            rect(highlightX, highlightY, cellWidth, cellHeight);
+            noStroke();
+        } else {
+            // Reset hover state if mouse is outside
+            this.mouseGridX = -1;
+            this.mouseGridY = -1;
+            this.selectedGlyph = null;
+            // Update Control Panel (Hover Info)
+            if (controlPanel != null) {
+                controlPanel.updateSelectionInfo(-1, -1, null);
+            }
+        }
+
+        // --- Clicked Highlight (Optional: Draw a different highlight for clicked cell)
+        // ---
+        if (clickedGridX >= 0 && clickedGridY >= 0) {
+            int clickedHighlightX = gridOriginX + clickedGridX * cellWidth;
+            int clickedHighlightY = gridOriginY + clickedGridY * cellHeight;
+            noFill();
+            stroke(0, 255, 255); // Cyan outline for clicked
+            strokeWeight(2); // Make it slightly thicker
+            rect(clickedHighlightX + 1, clickedHighlightY + 1, cellWidth - 2, cellHeight - 2); // Inset slightly
+            noStroke();
         }
     }
 
@@ -690,9 +812,9 @@ public class ProcessingCore extends PApplet {
                 Logger.println("Set display scale to: " + DISPLAY_SCALE);
             drawX = width / 2;
             drawY = height / 2;
-            if (controlPanel != null) {
-                controlPanel.updateScaleSelector(DISPLAY_SCALE);
-            }
+            // if (controlPanel != null) {
+            // controlPanel.updateScaleSelector(DISPLAY_SCALE);
+            // }
         } else if (k == 'r' || k == 'R') {
             fill(128);
             textSize(32);
@@ -811,12 +933,17 @@ public class ProcessingCore extends PApplet {
         }
     }
 
+    public ResultGlyph getClickedGlyph() {
+        return this.clickedGlyph;
+    }
+
     /**
      * Hauptmethode zum Starten der Anwendung.
      * 
      * @param args Kommandozeilenargumente (werden nicht verwendet)
      */
     public static void main(String[] args) {
+
         try {
             PApplet.main(new String[] { "ProcessingCore" });
         } catch (Exception e) {
