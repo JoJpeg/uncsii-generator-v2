@@ -4,6 +4,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.Toolkit;
+import java.util.Map; // Import Map
 
 /**
  * Ein Swing-Kontrollfenster, das Buttons für die Tastaturkürzel aus
@@ -36,12 +37,87 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JLabel clickedFgIndexLabel;
     private JLabel clickedBgIndexLabel;
 
+    private GlyphPreviewPanel glyphPreviewPanel; // Panel to display the clicked glyph
+    private ResultGlyph currentClickedGlyph; // Store the currently clicked glyph
+    private int[] currentColorPalette; // Store the palette
+    private Map<Integer, Long> currentAsciiPatterns; // Store the patterns
+
     // Singleton-Instanz
     private static ControlPanel Instance;
 
     public enum State {
         SETUP,
         EDIT,
+    }
+
+    /**
+     * Innere Klasse zum Zeichnen des ausgewählten Glyphs.
+     */
+    private class GlyphPreviewPanel extends JPanel {
+        private static final int PREVIEW_PIXEL_SIZE = 10; // Size of each pixel in the preview
+        private static final int PREVIEW_WIDTH = ProcessingCore.GLYPH_WIDTH * PREVIEW_PIXEL_SIZE;
+        private static final int PREVIEW_HEIGHT = ProcessingCore.GLYPH_HEIGHT * PREVIEW_PIXEL_SIZE;
+
+        GlyphPreviewPanel() {
+            setPreferredSize(new Dimension(PREVIEW_WIDTH, PREVIEW_HEIGHT));
+            setBorder(BorderFactory.createLineBorder(Color.GRAY)); // Add a border
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            // Draw background
+            drawGlyphColored(g);
+            drawOnlyGlyph(g);
+        }
+
+        public void drawOnlyGlyph(Graphics g) {
+            if (currentClickedGlyph != null && currentColorPalette != null && currentAsciiPatterns != null) {
+                long pattern = currentAsciiPatterns.getOrDefault(currentClickedGlyph.codePoint, 0L);
+                int fgColorInt = currentColorPalette[currentClickedGlyph.fgIndex];
+                int bgColorInt = currentColorPalette[currentClickedGlyph.bgIndex];
+                Color fgColor = Color.BLACK;
+                Color bgColor = Color.WHITE;
+
+                for (int y = 0; y < ProcessingCore.GLYPH_HEIGHT; y++) {
+                    for (int x = 0; x < ProcessingCore.GLYPH_WIDTH; x++) {
+                        int bitIndex = y * ProcessingCore.GLYPH_WIDTH + x;
+                        boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
+                        g.setColor(pixelOn ? fgColor : bgColor);
+                        g.fillRect((x + ProcessingCore.GLYPH_WIDTH + 1) * PREVIEW_PIXEL_SIZE, y * PREVIEW_PIXEL_SIZE,
+                                PREVIEW_PIXEL_SIZE,
+                                PREVIEW_PIXEL_SIZE);
+                    }
+                }
+            }
+        }
+
+        public void drawGlyphColored(Graphics g) {
+            g.setColor(getBackground());
+            g.fillRect(0, 0, getWidth(), getHeight());
+
+            if (currentClickedGlyph != null && currentColorPalette != null && currentAsciiPatterns != null) {
+                long pattern = currentAsciiPatterns.getOrDefault(currentClickedGlyph.codePoint, 0L);
+                int fgColorInt = currentColorPalette[currentClickedGlyph.fgIndex];
+                int bgColorInt = currentColorPalette[currentClickedGlyph.bgIndex];
+                Color fgColor = new Color(fgColorInt, true); // Use Processing color int directly
+                Color bgColor = new Color(bgColorInt, true);
+
+                for (int y = 0; y < ProcessingCore.GLYPH_HEIGHT; y++) {
+                    for (int x = 0; x < ProcessingCore.GLYPH_WIDTH; x++) {
+                        int bitIndex = y * ProcessingCore.GLYPH_WIDTH + x;
+                        boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
+                        g.setColor(pixelOn ? fgColor : bgColor);
+                        g.fillRect(x * PREVIEW_PIXEL_SIZE, y * PREVIEW_PIXEL_SIZE, PREVIEW_PIXEL_SIZE,
+                                PREVIEW_PIXEL_SIZE);
+                    }
+                }
+            } else {
+                // Optionally draw a placeholder if nothing is selected
+                g.setColor(Color.DARK_GRAY);
+                g.drawString("No Glyph", 10, PREVIEW_HEIGHT / 2);
+            }
+        }
     }
 
     /**
@@ -112,7 +188,8 @@ public class ControlPanel extends JFrame implements ActionListener {
 
         // --- Selection Info Container ---
         JPanel selectionInfoContainer = new JPanel();
-        selectionInfoContainer.setLayout(new BoxLayout(selectionInfoContainer, BoxLayout.Y_AXIS)); // Vertical layout for table + button
+        selectionInfoContainer.setLayout(new BoxLayout(selectionInfoContainer, BoxLayout.Y_AXIS)); // Vertical layout
+                                                                                                   // for table + button
         selectionInfoContainer.setBorder(BorderFactory.createTitledBorder("Selection Info"));
 
         // --- Selection Table Panel (GridLayout) ---
@@ -156,12 +233,18 @@ public class ControlPanel extends JFrame implements ActionListener {
         selectionInfoContainer.add(selectionTablePanel); // Add table to container
         selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
 
+        // --- Glyph Preview Panel ---
+        glyphPreviewPanel = new GlyphPreviewPanel();
+        glyphPreviewPanel.setAlignmentX(Component.CENTER_ALIGNMENT); // Center horizontally
+        selectionInfoContainer.add(glyphPreviewPanel); // Add preview panel below table
+        selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
+
         // --- Copy Button ---
         copyCharButton = new JButton("Copy Clicked Char");
         copyCharButton.setAlignmentX(Component.CENTER_ALIGNMENT); // Center button horizontally
         copyCharButton.setEnabled(false); // Disabled initially
         copyCharButton.addActionListener(this);
-        selectionInfoContainer.add(copyCharButton); // Add button below table
+        selectionInfoContainer.add(copyCharButton); // Add button below preview
 
         // Add panels to main panel
         mainPanel.add(topPanel, BorderLayout.NORTH);
@@ -190,7 +273,7 @@ public class ControlPanel extends JFrame implements ActionListener {
         // Copy button state depends on whether something is clicked, handled separately
         if (!editEnabled) {
             updateSelectionInfo(-1, -1, null); // Clear hover info
-            updateClickedInfo(-1, -1, null); // Clear clicked info
+            updateClickedInfo(-1, -1, null, null, null); // Clear clicked info
         }
     }
 
@@ -260,34 +343,56 @@ public class ControlPanel extends JFrame implements ActionListener {
     }
 
     /**
-     * Aktualisiert die Labels für die zuletzt angeklickte Zelle.
-     * (Updates Column 2 of the table)
+     * Aktualisiert die Labels und das Vorschaufenster für die zuletzt angeklickte
+     * Zelle.
+     * (Updates Column 2 of the table and the preview panel)
      *
-     * @param x     Die X-Koordinate der Zelle (-1 wenn keine Auswahl).
-     * @param y     Die Y-Koordinate der Zelle (-1 wenn keine Auswahl).
-     * @param glyph Das ResultGlyph-Objekt der Zelle (null wenn keine Auswahl).
+     * @param x             Die X-Koordinate der Zelle (-1 wenn keine Auswahl).
+     * @param y             Die Y-Koordinate der Zelle (-1 wenn keine Auswahl).
+     * @param glyph         Das ResultGlyph-Objekt der Zelle (null wenn keine
+     *                      Auswahl).
+     * @param colorPalette  Die Farbpalette.
+     * @param asciiPatterns Die Glyphenmuster.
      */
-    public void updateClickedInfo(int x, int y, ResultGlyph glyph) {
+    public void updateClickedInfo(int x, int y, ResultGlyph glyph, int[] colorPalette,
+            Map<Integer, Long> asciiPatterns) {
+        // Store the data for the preview panel
+        this.currentClickedGlyph = glyph;
+        this.currentColorPalette = colorPalette;
+        this.currentAsciiPatterns = asciiPatterns;
+
         if (x >= 0 && y >= 0 && glyph != null) {
             clickedXPosLabel.setText(String.valueOf(x));
             clickedYPosLabel.setText(String.valueOf(y));
-            clickedCodepointLabel.setText(String.format("%d (U+%04X)", glyph.codePoint, glyph.codePoint)); // Keep full format for clicked
-            clickedFgIndexLabel.setText(String.valueOf(glyph.fgIndex)); // Set individual FG label
-            clickedBgIndexLabel.setText(String.valueOf(glyph.bgIndex)); // Set individual BG label
-            copyCharButton.setEnabled(true); // Enable copy button
+            // Display character if printable, otherwise just codepoint
+            String charDisplay = Character.isDefined(glyph.codePoint) && !Character.isISOControl(glyph.codePoint)
+                    ? "'" + new String(Character.toChars(glyph.codePoint)) + "' "
+                    : "";
+            clickedCodepointLabel
+                    .setText(String.format("%s%d (U+%04X)", charDisplay, glyph.codePoint, glyph.codePoint));
+            clickedFgIndexLabel.setText(String.valueOf(glyph.fgIndex));
+            clickedBgIndexLabel.setText(String.valueOf(glyph.bgIndex));
+            copyCharButton.setEnabled(true);
         } else {
             clickedXPosLabel.setText("-");
             clickedYPosLabel.setText("-");
             clickedCodepointLabel.setText("-");
-            clickedFgIndexLabel.setText("-"); // Clear individual FG label
-            clickedBgIndexLabel.setText("-"); // Clear individual BG label
-            copyCharButton.setEnabled(false); // Disable copy button
+            clickedFgIndexLabel.setText("-");
+            clickedBgIndexLabel.setText("-");
+            copyCharButton.setEnabled(false);
+        }
+
+        // Trigger repaint of the preview panel
+        if (glyphPreviewPanel != null) {
+            glyphPreviewPanel.repaint();
         }
     }
 
     /**
-     * Aktualisiert den ausgewählten Skalierungsfaktor im UI, ohne einen ActionEvent auszulösen.
-     * Wird von ProcessingCore aufgerufen, wenn die Skala per Tastatur/Mausrad geändert wird.
+     * Aktualisiert den ausgewählten Skalierungsfaktor im UI, ohne einen ActionEvent
+     * auszulösen.
+     * Wird von ProcessingCore aufgerufen, wenn die Skala per Tastatur/Mausrad
+     * geändert wird.
      *
      * @param scale Der aktuelle Skalierungsfaktor (1-8)
      */
