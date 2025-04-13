@@ -47,7 +47,7 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JLabel clickedCodepointLabel;
     private JLabel clickedFgIndexLabel;
     private JLabel clickedBgIndexLabel;
-    
+
     // Selection Area Labels
     private JLabel selectionXPosLabel;
     private JLabel selectionYPosLabel;
@@ -270,29 +270,23 @@ public class ControlPanel extends JFrame implements ActionListener {
         selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
 
         // --- Selection Area Dimensions Panel ---
-        JPanel selectionAreaPanel = new JPanel(new GridLayout(4, 2, 8, 2));
+        JPanel selectionAreaPanel = new JPanel(new GridLayout(2, 2, 8, 2));
         selectionAreaPanel.setBorder(BorderFactory.createTitledBorder("Selection Area"));
-        
-        // Selection X
-        selectionAreaPanel.add(new JLabel("Selection X:"));
-        selectionXPosLabel = new JLabel("-", SwingConstants.CENTER);
+
+        // Selection Position (X,Y)
+        selectionAreaPanel.add(new JLabel("Position (X,Y):"));
+        selectionXPosLabel = new JLabel("-,-", SwingConstants.CENTER);
         selectionAreaPanel.add(selectionXPosLabel);
-        
-        // Selection Y
-        selectionAreaPanel.add(new JLabel("Selection Y:"));
-        selectionYPosLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionAreaPanel.add(selectionYPosLabel);
-        
-        // Selection Width
-        selectionAreaPanel.add(new JLabel("Width:"));
-        selectionWidthLabel = new JLabel("-", SwingConstants.CENTER);
+
+        // Selection Size (Width,Height)
+        selectionAreaPanel.add(new JLabel("Size (W,H):"));
+        selectionWidthLabel = new JLabel("-,-", SwingConstants.CENTER);
         selectionAreaPanel.add(selectionWidthLabel);
-        
-        // Selection Height
-        selectionAreaPanel.add(new JLabel("Height:"));
-        selectionHeightLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionAreaPanel.add(selectionHeightLabel);
-        
+
+        // Remove the unused labels that were previously used for separate values
+        selectionYPosLabel = null;
+        selectionHeightLabel = null;
+
         selectionInfoContainer.add(selectionAreaPanel);
         selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
 
@@ -598,11 +592,11 @@ public class ControlPanel extends JFrame implements ActionListener {
      * Updates the selection area information in the control panel.
      * Shows the position and dimensions of the current selection area.
      * 
-     * @param hasSelection  Whether there is an active selection
-     * @param startX        The starting X coordinate of the selection
-     * @param startY        The starting Y coordinate of the selection
-     * @param endX          The ending X coordinate of the selection
-     * @param endY          The ending Y coordinate of the selection
+     * @param hasSelection Whether there is an active selection
+     * @param startX       The starting X coordinate of the selection
+     * @param startY       The starting Y coordinate of the selection
+     * @param endX         The ending X coordinate of the selection
+     * @param endY         The ending Y coordinate of the selection
      */
     public void updateSelectionAreaInfo(boolean hasSelection, int startX, int startY, int endX, int endY) {
         if (hasSelection && startX >= 0 && startY >= 0 && endX >= 0 && endY >= 0) {
@@ -611,23 +605,19 @@ public class ControlPanel extends JFrame implements ActionListener {
             int minY = Math.min(startY, endY);
             int maxX = Math.max(startX, endX);
             int maxY = Math.max(startY, endY);
-            
-            int width = maxX - minX + 1;  // +1 because it's inclusive
+
+            int width = maxX - minX + 1; // +1 because it's inclusive
             int height = maxY - minY + 1; // +1 because it's inclusive
-            
+
             // Update labels with selection information
-            selectionXPosLabel.setText(String.valueOf(minX));
-            selectionYPosLabel.setText(String.valueOf(minY));
-            selectionWidthLabel.setText(String.valueOf(width));
-            selectionHeightLabel.setText(String.valueOf(height));
-            
+            selectionXPosLabel.setText(String.format("%d,%d", minX, minY));
+            selectionWidthLabel.setText(String.format("%d,%d", width, height));
+
             Logger.println("Selection Area: (" + minX + "," + minY + ") Width=" + width + " Height=" + height);
         } else {
             // No selection, clear the information
-            selectionXPosLabel.setText("-");
-            selectionYPosLabel.setText("-");
-            selectionWidthLabel.setText("-");
-            selectionHeightLabel.setText("-");
+            selectionXPosLabel.setText("-,-");
+            selectionWidthLabel.setText("-,-");
         }
     }
 

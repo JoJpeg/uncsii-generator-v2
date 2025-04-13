@@ -48,6 +48,16 @@ public class SelectionCommand implements Command {
         processingCore.selectionEndX = newEndX;
         processingCore.selectionEndY = newEndY;
 
+        // Update selection info in control panel
+        if (processingCore.controlPanel != null) {
+            processingCore.controlPanel.updateSelectionAreaInfo(
+                    newHasSelection,
+                    newStartX,
+                    newStartY,
+                    newEndX,
+                    newEndY);
+        }
+
         String logMessage = newHasSelection
                 ? "Selektion aktiviert: (" + newStartX + "," + newStartY + ") bis (" + newEndX + "," + newEndY + ")"
                 : "Selektion aufgehoben";
@@ -62,6 +72,16 @@ public class SelectionCommand implements Command {
         processingCore.selectionStartY = oldStartY;
         processingCore.selectionEndX = oldEndX;
         processingCore.selectionEndY = oldEndY;
+
+        // Update selection info in control panel for the undone selection
+        if (processingCore.controlPanel != null) {
+            processingCore.controlPanel.updateSelectionAreaInfo(
+                    oldHasSelection,
+                    oldStartX,
+                    oldStartY,
+                    oldEndX,
+                    oldEndY);
+        }
 
         String logMessage = oldHasSelection
                 ? "Selektion wiederhergestellt: (" + oldStartX + "," + oldStartY + ") bis (" + oldEndX + "," + oldEndY
