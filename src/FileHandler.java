@@ -8,7 +8,8 @@ import java.nio.charset.StandardCharsets;
 
 public class FileHandler {
 
-    public static String workingDir;
+    public static String saveFileWorkPath;
+    public static String loadFileWorkPath;
 
     public static File lastSelection = null;
 
@@ -54,8 +55,8 @@ public class FileHandler {
 
     public static void setLastAsWorkingDirectory() {
         if (lastSelection != null) {
-            workingDir = lastSelection.getAbsolutePath();
-            Logger.println("Working directory set to: " + workingDir);
+            saveFileWorkPath = lastSelection.getAbsolutePath();
+            Logger.println("Working directory set to: " + saveFileWorkPath);
         } else {
             Logger.println("No file selected, working directory not set.");
         }

@@ -86,7 +86,7 @@ public class ProcessingCore extends PApplet {
     private String outputPath = DEFAULT_OUTPUT_PATH;
     public int[] colorPalette; // Color palette (256 colors)
     private ImageLoadingState imageLoadingState = ImageLoadingState.NONE;
-    
+
     // Synchronization flag to avoid race conditions
     private volatile boolean isImageProcessing = false;
 
@@ -157,7 +157,7 @@ public class ProcessingCore extends PApplet {
             textSize(24);
             textAlign(CENTER, CENTER);
             text("Please wait...", width / 2, height / 2);
-            return; // Stop drawing until loading is complete
+            // return; // Stop drawing until loading is complete
         }
 
         if (showSourceImage && inputImage != null) {
@@ -337,7 +337,7 @@ public class ProcessingCore extends PApplet {
             if (inputImage == null) {
                 Logger.println("Error loading image: " + path);
                 imageLoadingState = ImageLoadingState.ERROR;
-                isImageProcessing = false;  // Important: Reset flag on error
+                isImageProcessing = false; // Important: Reset flag on error
                 return;
             }
 
@@ -352,7 +352,7 @@ public class ProcessingCore extends PApplet {
             if (gridWidth == 0 || gridHeight == 0) {
                 Logger.println("Image too small after resizing/cropping for an 8x8 grid.");
                 imageLoadingState = ImageLoadingState.ERROR;
-                isImageProcessing = false;  // Important: Reset flag on error
+                isImageProcessing = false; // Important: Reset flag on error
                 return;
             }
 
@@ -382,13 +382,13 @@ public class ProcessingCore extends PApplet {
                 controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
                 controlPanel.updateSelectionInfo(-1, -1, null);
             }
-            
+
             // CRITICAL FIX: Always reset the processing flag when done
             isImageProcessing = false;
         } catch (Exception e) {
             Logger.println("Error during image processing: " + e.getMessage());
             e.printStackTrace();
-            isImageProcessing = false;  // Important: Reset flag on error
+            isImageProcessing = false; // Important: Reset flag on error
             imageLoadingState = ImageLoadingState.ERROR;
             resultGrid = null;
         } finally {
@@ -833,11 +833,17 @@ public class ProcessingCore extends PApplet {
             for (int x = 0; x < gridWidth; x++) {
                 // check for bounds
                 if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) {
-                    continue;
+                    return;
                 }
-                ResultGlyph glyphInfo = resultGrid[y][x];
+                ResultGlyph glyphInfo = null;
+                try {
+                    glyphInfo = resultGrid[y][x];
+                } catch (ArrayIndexOutOfBoundsException e) {
+                    Logger.println("ArrayIndexOutOfBoundsException: " + e.getMessage());
+                    return;
+                }
                 if (glyphInfo == null) {
-                    continue;
+                    return;
                 }
 
                 long pattern = asciiPatterns.getOrDefault(glyphInfo.codePoint, 0L);
