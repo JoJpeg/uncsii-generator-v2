@@ -59,6 +59,9 @@ public class ProcessingCore extends PApplet {
 
     // ========== INSTANCE VARIABLES ==========
 
+    // --- Command Manager für Undo/Redo ---
+    private CommandManager commandManager = new CommandManager();
+
     // --- Display Variables ---
     private int displayAreaWidth = DEFAULT_DISPLAY_AREA_WIDTH;
     private int displayAreaHeight = DEFAULT_DISPLAY_AREA_HEIGHT;
@@ -69,7 +72,7 @@ public class ProcessingCore extends PApplet {
 
     // --- Font Pattern Variables ---
     private GlyphPatternGenerator patternGenerator;
-    private Map<Integer, Long> asciiPatterns;
+    public Map<Integer, Long> asciiPatterns;
     private String fontPath = DEFAULT_FONT_PATH;
     private PFont unscii;
 
@@ -81,8 +84,11 @@ public class ProcessingCore extends PApplet {
     public int gridHeight;
     private String imagePath;
     private String outputPath = DEFAULT_OUTPUT_PATH;
-    private int[] colorPalette; // Color palette (256 colors)
+    public int[] colorPalette; // Color palette (256 colors)
     private ImageLoadingState imageLoadingState = ImageLoadingState.NONE;
+    
+    // Synchronization flag to avoid race conditions
+    private volatile boolean isImageProcessing = false;
 
     // --- Selection Variables ---
     // Hover selection
@@ -91,12 +97,12 @@ public class ProcessingCore extends PApplet {
     private ResultGlyph selectedGlyph = null;
 
     // Clicked selection (single cell)
-    private int clickedGridX = -1;
-    private int clickedGridY = -1;
+    public int clickedGridX = -1;
+    public int clickedGridY = -1;
     public ResultGlyph clickedGlyph = null;
 
     // --- Control Panel ---
-    private ControlPanel controlPanel;
+    public ControlPanel controlPanel;
 
     // --- Interaction State ---
     public boolean isSpacebarDown = false; // Track spacebar state
@@ -144,6 +150,15 @@ public class ProcessingCore extends PApplet {
     @Override
     public void draw() {
         background(30);
+
+        // When image is processing, show a loading indicator
+        if (isImageProcessing) {
+            fill(128);
+            textSize(24);
+            textAlign(CENTER, CENTER);
+            text("Please wait...", width / 2, height / 2);
+            return; // Stop drawing until loading is complete
+        }
 
         if (showSourceImage && inputImage != null) {
             drawSourceImage();
@@ -297,37 +312,89 @@ public class ProcessingCore extends PApplet {
      * Load and process an image for conversion
      */
     void loadAndProcessImage(String path) {
-        inputImage = loadImage(path);
-        if (inputImage == null) {
-            Logger.println("Error loading image: " + path);
+        try {
+            // Early exit if path is null or empty
+            if (path == null || path.isEmpty()) {
+                Logger.println("Invalid image path: null or empty");
+                imageLoadingState = ImageLoadingState.ERROR;
+                return;
+            }
+
+            // Activate image processing flag to manage render state
+            isImageProcessing = true;
+
+            // Show loading status
+            fill(128);
+            textSize(24);
+            textAlign(CENTER, CENTER);
+            background(30);
+            text("Loading image...", width / 2, height / 2);
+
+            // Update the canvas to give immediate feedback
+            redraw();
+
+            inputImage = loadImage(path);
+            if (inputImage == null) {
+                Logger.println("Error loading image: " + path);
+                imageLoadingState = ImageLoadingState.ERROR;
+                isImageProcessing = false;  // Important: Reset flag on error
+                return;
+            }
+
+            inputImage.loadPixels();
+
+            // Resize image to fit display area while maintaining aspect ratio
+            resizeImageForDisplay();
+
+            // Ensure image dimensions are multiples of the glyph size
+            cropImageToFitGrid();
+
+            if (gridWidth == 0 || gridHeight == 0) {
+                Logger.println("Image too small after resizing/cropping for an 8x8 grid.");
+                imageLoadingState = ImageLoadingState.ERROR;
+                isImageProcessing = false;  // Important: Reset flag on error
+                return;
+            }
+
+            // Create a new result grid array
+            resultGrid = new ResultGlyph[gridHeight][gridWidth];
+
+            Logger.println("Starting ASCII conversion...");
+            long startTime = System.currentTimeMillis();
+
+            generateAsciiArtExact();
+
+            long endTime = System.currentTimeMillis();
+            Logger.println("Conversion finished in " + (endTime - startTime) + " ms.");
+            imageLoadingState = ImageLoadingState.LOADED;
+
+            // Reset selection states
+            clickedGridX = -1;
+            clickedGridY = -1;
+            clickedGlyph = null;
+            mouseGridX = -1;
+            mouseGridY = -1;
+            selectedGlyph = null;
+            hasSelection = false;
+            selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
+
+            if (controlPanel != null) {
+                controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
+                controlPanel.updateSelectionInfo(-1, -1, null);
+            }
+            
+            // CRITICAL FIX: Always reset the processing flag when done
+            isImageProcessing = false;
+        } catch (Exception e) {
+            Logger.println("Error during image processing: " + e.getMessage());
+            e.printStackTrace();
+            isImageProcessing = false;  // Important: Reset flag on error
             imageLoadingState = ImageLoadingState.ERROR;
-            return;
+            resultGrid = null;
+        } finally {
+            // Ensure the processing flag is always reset, even if we missed some case
+            isImageProcessing = false;
         }
-
-        inputImage.loadPixels();
-
-        // Resize image to fit display area while maintaining aspect ratio
-        resizeImageForDisplay();
-
-        // Ensure image dimensions are multiples of the glyph size
-        cropImageToFitGrid();
-
-        if (gridWidth == 0 || gridHeight == 0) {
-            Logger.println("Image too small after resizing/cropping for an 8x8 grid.");
-            imageLoadingState = ImageLoadingState.ERROR;
-            return;
-        }
-
-        resultGrid = new ResultGlyph[gridHeight][gridWidth];
-
-        Logger.println("Starting ASCII conversion...");
-        long startTime = System.currentTimeMillis();
-
-        generateAsciiArtExact();
-
-        long endTime = System.currentTimeMillis();
-        Logger.println("Conversion finished in " + (endTime - startTime) + " ms.");
-        imageLoadingState = ImageLoadingState.LOADED;
     }
 
     /**
@@ -716,23 +783,24 @@ public class ProcessingCore extends PApplet {
      * Draw the source image
      */
     private void drawSourceImage() {
-        float imgAspect = (float) inputImage.width / inputImage.height;
-        float canvasAspect = (float) width / height;
+        if (inputImage == null)
+            return;
+
         int cellWidth = GLYPH_WIDTH * DISPLAY_SCALE;
         int cellHeight = GLYPH_HEIGHT * DISPLAY_SCALE;
-        int w = gridWidth * cellWidth;
-        int h = gridHeight * cellHeight;
+        int totalGridWidthPixels = gridWidth * cellWidth;
+        int totalGridHeightPixels = gridHeight * cellHeight;
 
-        if (imgAspect > canvasAspect) {
-            drawW = w;
-            drawH = (int) (w / imgAspect);
-        } else {
-            drawH = h;
-            drawW = (int) (h * imgAspect);
-        }
+        // Berechne die Position des Grids genau wie in drawResult()
+        int gridOriginX = (width - totalGridWidthPixels) / 2 + drawX - width / 2;
+        int gridOriginY = (height - totalGridHeightPixels) / 2 + drawY - height / 2;
 
-        image(inputImage, drawX - width / 2, drawY - height / 2, drawW, drawH);
-        imageMode(CORNER);
+        // Zeichne das Bild genau so groß wie das Grid, damit es deckungsgleich ist
+        image(inputImage, gridOriginX, gridOriginY, totalGridWidthPixels, totalGridHeightPixels);
+
+        // Speichere die berechneten Dimensionen für andere Methoden
+        drawW = totalGridWidthPixels;
+        drawH = totalGridHeightPixels;
 
         // Clear selection info when showing source image
         if (controlPanel != null) {
@@ -763,6 +831,10 @@ public class ProcessingCore extends PApplet {
         // Draw all glyphs
         for (int y = 0; y < gridHeight; y++) {
             for (int x = 0; x < gridWidth; x++) {
+                // check for bounds
+                if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) {
+                    continue;
+                }
                 ResultGlyph glyphInfo = resultGrid[y][x];
                 if (glyphInfo == null) {
                     continue;
@@ -925,11 +997,24 @@ public class ProcessingCore extends PApplet {
             if (clickInGrid) {
                 // Start selection drag
                 isSelecting = true;
+                // Speichere den alten Zustand, bevor wir ihn ändern
+                boolean oldHasSelection = hasSelection;
+                int oldStartX = selectionStartX;
+                int oldStartY = selectionStartY;
+                int oldEndX = selectionEndX;
+                int oldEndY = selectionEndY;
+
                 hasSelection = false; // Clear previous final selection
                 selectionStartX = gridClickX;
                 selectionStartY = gridClickY;
                 selectionEndX = gridClickX; // Init end to start
                 selectionEndY = gridClickY;
+
+                // Erstelle ein SelectionCommand für die Änderung der Selektion
+                if (oldHasSelection) {
+                    // Nur wenn vorher eine Selektion aktiv war, erstellen wir ein Command
+                    setSelection(false, -1, -1, -1, -1);
+                }
 
                 // Clear single-cell click selection when starting drag selection
                 clickedGridX = -1;
@@ -942,11 +1027,26 @@ public class ProcessingCore extends PApplet {
 
             } else {
                 // Click outside grid: Clear single-cell click AND selection area
+
+                // Wenn eine Selektion aktiv war, speichere sie für Undo
+                if (hasSelection) {
+                    int oldStartX = selectionStartX;
+                    int oldStartY = selectionStartY;
+                    int oldEndX = selectionEndX;
+                    int oldEndY = selectionEndY;
+
+                    // Erstelle ein SelectionCommand, um das Aufheben der Selektion rückgängig
+                    // machen zu können
+                    setSelection(false, -1, -1, -1, -1);
+                } else {
+                    // Bei keiner aktiven Selektion einfach zurücksetzen ohne Command
+                    hasSelection = false;
+                    selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
+                }
+
                 clickedGridX = -1;
                 clickedGridY = -1;
                 clickedGlyph = null;
-                hasSelection = false;
-                selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
                 if (controlPanel != null) {
                     controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
                 }
@@ -954,11 +1054,26 @@ public class ProcessingCore extends PApplet {
             }
         } else {
             // Source image shown or no grid: Clear single-cell click AND selection area
+
+            // Wenn eine Selektion aktiv war, speichere sie für Undo
+            if (hasSelection) {
+                int oldStartX = selectionStartX;
+                int oldStartY = selectionStartY;
+                int oldEndX = selectionEndX;
+                int oldEndY = selectionEndY;
+
+                // Erstelle ein SelectionCommand, um das Aufheben der Selektion rückgängig
+                // machen zu können
+                setSelection(false, -1, -1, -1, -1);
+            } else {
+                // Bei keiner aktiven Selektion einfach zurücksetzen ohne Command
+                hasSelection = false;
+                selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
+            }
+
             clickedGridX = -1;
             clickedGridY = -1;
             clickedGlyph = null;
-            hasSelection = false;
-            selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
             if (controlPanel != null) {
                 controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
             }
@@ -1028,11 +1143,15 @@ public class ProcessingCore extends PApplet {
                     selectionEndY = selectionStartY;
 
                 // Check if the selection is just a single cell (no actual drag)
-                if (selectionStartX == selectionEndX && selectionStartY == selectionEndY && !startedDragging) {
-                    hasSelection = false; // It was just a click, not a selection drag
-                    // Handle as single cell click below
+                if (selectionStartX == selectionStartX && selectionStartY == selectionEndY && !startedDragging) {
+                    // Es war nur ein Klick, keine richtige Selektion
+                    selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
+                    hasSelection = false;
                 } else {
-                    hasSelection = true; // Finalize the selection area
+                    // Erstelle ein SelectionCommand, um die Selektion zu setzen
+
+                    setSelection(true, selectionStartX, selectionStartY, selectionEndX, selectionEndY);
+
                     // Normalize coordinates for logging
                     int minX = min(selectionStartX, selectionEndX);
                     int minY = min(selectionStartY, selectionEndY);
@@ -1074,7 +1193,7 @@ public class ProcessingCore extends PApplet {
             if (clickInGrid) {
                 clickedGridX = gridClickX;
                 clickedGridY = gridClickY;
-                clickedGlyph = resultGrid[clickedGridY][clickedGridX];
+                clickedGlyph = resultGrid[clickedGridY][gridClickX];
                 if (controlPanel != null) {
                     controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette,
                             asciiPatterns);
@@ -1159,7 +1278,18 @@ public class ProcessingCore extends PApplet {
         if (primaryModifier && !isAlt) { // Cmd/Ctrl pressed (without Alt)
             char lowerKeyChar = Character.toLowerCase(keyChar);
 
-            if (lowerKeyChar == 'c') {
+            if (lowerKeyChar == 'z') {
+                // Cmd/Ctrl + Z -> Undo
+                Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Z detected.");
+                undo();
+                handled = true;
+            } else if (lowerKeyChar == 'y' || (lowerKeyChar == 'z' && isShift)) {
+                // Cmd/Ctrl + Y or Cmd/Ctrl + Shift + Z -> Redo
+                Logger.println("ProcessingCore: Shortcut " +
+                        (lowerKeyChar == 'y' ? "Cmd/Ctrl+Y" : "Cmd/Ctrl+Shift+Z") + " detected.");
+                redo();
+                handled = true;
+            } else if (lowerKeyChar == 'c') {
                 if (isShift) {
                     // Cmd/Ctrl + Shift + C -> Copy Colors
                     Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Shift+C detected.");
@@ -1203,6 +1333,22 @@ public class ProcessingCore extends PApplet {
     }
 
     /**
+     * Undo-Methode für die UI-Taste
+     * Wird vom ControlPanel aufgerufen
+     */
+    public void undoAction() {
+        undo();
+    }
+
+    /**
+     * Redo-Methode für die UI-Taste
+     * Wird vom ControlPanel aufgerufen
+     */
+    public void redoAction() {
+        redo();
+    }
+
+    /**
      * Helper method to handle simple character key presses (s, p, 1-8, r, l).
      * Called directly from the simple `keyPressed()` method.
      * 
@@ -1240,21 +1386,17 @@ public class ProcessingCore extends PApplet {
      */
     public void flipClickedGlyphColors() {
         if (clickedGlyph != null && clickedGridX >= 0 && clickedGridY >= 0) {
-            int oldFg = resultGrid[clickedGridY][clickedGridX].fgIndex;
-            int oldBg = resultGrid[clickedGridY][clickedGridX].bgIndex;
+            // Erstelle eine neue Glyphe mit vertauschten Farben
+            ResultGlyph newGlyph = new ResultGlyph(
+                    clickedGlyph.codePoint,
+                    clickedGlyph.bgIndex, // Tausche fg und bg
+                    clickedGlyph.fgIndex);
 
-            resultGrid[clickedGridY][clickedGridX].fgIndex = oldBg;
-            resultGrid[clickedGridY][clickedGridX].bgIndex = oldFg;
+            // Erstelle und führe das Command aus
+            GlyphChangeCommand cmd = new GlyphChangeCommand(this, clickedGridX, clickedGridY, newGlyph);
+            commandManager.executeCommand(cmd);
 
-            clickedGlyph = resultGrid[clickedGridY][clickedGridX]; // Update the reference
-
-            Logger.println(
-                    "Flipped colors at (" + clickedGridX + "," + clickedGridY + ") to FG=" + oldBg + ", BG=" + oldFg);
-
-            // Update the control panel display with the modified glyph
-            if (controlPanel != null) {
-                controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette, asciiPatterns);
-            }
+            Logger.println("Flipped colors at (" + clickedGridX + "," + clickedGridY + ")");
         } else {
             Logger.println("No glyph selected to flip colors.");
         }
@@ -1272,18 +1414,18 @@ public class ProcessingCore extends PApplet {
 
             // Check if the new codepoint has a pattern available
             if (asciiPatterns.containsKey(newCodePoint)) {
-                resultGrid[clickedGridY][clickedGridX].codePoint = newCodePoint;
-                clickedGlyph = resultGrid[clickedGridY][clickedGridX]; // Update the reference
+                // Erstelle eine neue Glyphe mit geändertem codePoint
+                ResultGlyph newGlyph = new ResultGlyph(
+                        newCodePoint,
+                        clickedGlyph.fgIndex,
+                        clickedGlyph.bgIndex);
+
+                // Erstelle und führe das Command aus
+                GlyphChangeCommand cmd = new GlyphChangeCommand(this, clickedGridX, clickedGridY, newGlyph);
+                commandManager.executeCommand(cmd);
 
                 Logger.println("Replaced glyph at (" + clickedGridX + "," + clickedGridY + ") with char '" + newChar
                         + "' (Codepoint: " + newCodePoint + ")");
-
-                // Update the control panel display if needed, passing updated glyph, palette,
-                // and patterns
-                if (controlPanel != null) {
-                    controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette,
-                            asciiPatterns);
-                }
             } else {
                 Logger.println("Error: Character '" + newChar + "' (Codepoint: " + newCodePoint
                         + ") not found in font patterns. Cannot replace.");
@@ -1310,17 +1452,18 @@ public class ProcessingCore extends PApplet {
                 return;
             }
 
-            resultGrid[clickedGridY][clickedGridX].fgIndex = fgIndex;
-            resultGrid[clickedGridY][clickedGridX].bgIndex = bgIndex;
-            clickedGlyph = resultGrid[clickedGridY][clickedGridX]; // Update the reference
+            // Erstelle eine neue Glyphe mit neuen Farben
+            ResultGlyph newGlyph = new ResultGlyph(
+                    clickedGlyph.codePoint,
+                    fgIndex,
+                    bgIndex);
+
+            // Erstelle und führe das Command aus
+            GlyphChangeCommand cmd = new GlyphChangeCommand(this, clickedGridX, clickedGridY, newGlyph);
+            commandManager.executeCommand(cmd);
 
             Logger.println("Replaced colors at (" + clickedGridX + "," + clickedGridY + ") with FG=" + fgIndex + ", BG="
                     + bgIndex);
-
-            // Update the control panel display with the modified glyph
-            if (controlPanel != null) {
-                controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette, asciiPatterns);
-            }
         } else {
             Logger.println("No glyph selected to replace colors.");
         }
@@ -1349,24 +1492,60 @@ public class ProcessingCore extends PApplet {
                 return;
             }
 
-            // Replace data in the grid
-            resultGrid[clickedGridY][clickedGridX].codePoint = sourceGlyph.codePoint;
-            resultGrid[clickedGridY][clickedGridX].fgIndex = sourceGlyph.fgIndex;
-            resultGrid[clickedGridY][clickedGridX].bgIndex = sourceGlyph.bgIndex;
+            // Erstelle eine neue Glyphe basierend auf der Quellglyphe
+            ResultGlyph newGlyph = new ResultGlyph(
+                    sourceGlyph.codePoint,
+                    sourceGlyph.fgIndex,
+                    sourceGlyph.bgIndex);
 
-            clickedGlyph = resultGrid[clickedGridY][clickedGridX]; // Update the reference
+            // Erstelle und führe das Command aus
+            GlyphChangeCommand cmd = new GlyphChangeCommand(this, clickedGridX, clickedGridY, newGlyph);
+            commandManager.executeCommand(cmd);
 
             Logger.println("Replaced glyph at (" + clickedGridX + "," + clickedGridY + ") with internal glyph data.");
-
-            // Update the control panel display with the modified glyph
-            if (controlPanel != null) {
-                controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette, asciiPatterns);
-            }
         } else {
             if (clickedGlyph == null)
                 Logger.println("No glyph selected to replace.");
             if (sourceGlyph == null)
                 Logger.println("Source glyph data is null.");
+        }
+    }
+
+    /**
+     * Setze eine Selektion und speichert die Änderung über das Command-Pattern
+     * 
+     * @param hasSelection Gibt an, ob die Selektion aktiv ist
+     * @param startX       X-Startkoordinate der Selektion
+     * @param startY       Y-Startkoordinate der Selektion
+     * @param endX         X-Endkoordinate der Selektion
+     * @param endY         Y-Endkoordinate der Selektion
+     */
+    public void setSelection(boolean hasSelection, int startX, int startY, int endX, int endY) {
+        SelectionCommand cmd = new SelectionCommand(this, hasSelection, startX, startY, endX, endY);
+        commandManager.executeCommand(cmd);
+    }
+
+    /**
+     * Macht die letzte Aktion rückgängig
+     */
+    public void undo() {
+        if (commandManager.canUndo()) {
+            commandManager.undo();
+            Logger.println("Aktion rückgängig gemacht");
+        } else {
+            Logger.println("Nichts zum Rückgängig machen");
+        }
+    }
+
+    /**
+     * Wiederholt die zuletzt rückgängig gemachte Aktion
+     */
+    public void redo() {
+        if (commandManager.canRedo()) {
+            commandManager.redo();
+            Logger.println("Aktion wiederhergestellt");
+        } else {
+            Logger.println("Nichts zum Wiederherstellen");
         }
     }
 

@@ -24,6 +24,10 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JComboBox<String> scaleSelector;
     private TextArea logArea;
 
+    // Undo/Redo-Buttons
+    private JButton undoButton;
+    private JButton redoButton;
+
     private JButton copyGlyphButton;
     private JButton pasteCharExtButton;
     private JButton pasteGlyphIntButton;
@@ -91,14 +95,18 @@ public class ControlPanel extends JFrame implements ActionListener {
                 Color fgColor = Color.BLACK;
                 Color bgColor = Color.WHITE;
 
+                // Berechne richtige X-Position, damit beide Darstellungen übereinander liegen
+                int xOffset = getWidth() - (ProcessingCore.GLYPH_WIDTH * PREVIEW_PIXEL_SIZE);
+
                 for (int y = 0; y < ProcessingCore.GLYPH_HEIGHT; y++) {
                     for (int x = 0; x < ProcessingCore.GLYPH_WIDTH; x++) {
                         int bitIndex = y * ProcessingCore.GLYPH_WIDTH + x;
                         boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
                         g.setColor(pixelOn ? fgColor : bgColor);
-                        g.fillRect((x + ProcessingCore.GLYPH_WIDTH + 1) * PREVIEW_PIXEL_SIZE, y * PREVIEW_PIXEL_SIZE,
-                                PREVIEW_PIXEL_SIZE,
-                                PREVIEW_PIXEL_SIZE);
+                        // Positioniere die schwarz-weiße Darstellung an der gleichen Stelle wie die
+                        // farbige
+                        g.fillRect(xOffset + x * PREVIEW_PIXEL_SIZE, y * PREVIEW_PIXEL_SIZE,
+                                PREVIEW_PIXEL_SIZE, PREVIEW_PIXEL_SIZE);
                     }
                 }
             }
@@ -181,6 +189,16 @@ public class ControlPanel extends JFrame implements ActionListener {
         restartButton.setPreferredSize(buttonSize);
         restartButton.addActionListener(this);
         buttonPanel.add(restartButton);
+
+        undoButton = new JButton("Undo (Ctrl+Z)");
+        undoButton.setPreferredSize(buttonSize);
+        undoButton.addActionListener(this);
+        buttonPanel.add(undoButton);
+
+        redoButton = new JButton("Redo (Ctrl+Y)");
+        redoButton.setPreferredSize(buttonSize);
+        redoButton.addActionListener(this);
+        buttonPanel.add(redoButton);
 
         topPanel.add(buttonPanel);
         topPanel.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
@@ -324,6 +342,8 @@ public class ControlPanel extends JFrame implements ActionListener {
         saveButton.setEnabled(editEnabled);
         restartButton.setEnabled(editEnabled);
         scaleSelector.setEnabled(editEnabled);
+        undoButton.setEnabled(editEnabled);
+        redoButton.setEnabled(editEnabled);
 
         // Enablement of copy/paste buttons/actions depends on selection/clipboard
         // state,
@@ -359,6 +379,10 @@ public class ControlPanel extends JFrame implements ActionListener {
                 p.keyPressed((char) ('0' + scaleSelector.getSelectedIndex() + 1));
             else if (source == loadButton)
                 p.keyPressed('l');
+            else if (source == undoButton)
+                p.undoAction(); // Call the undo method in ProcessingCore
+            else if (source == redoButton)
+                p.redoAction(); // Call the redo method in ProcessingCore
             else if (source == copyGlyphButton)
                 copyInternalGlyphAndExternalChar();
             else if (source == pasteCharExtButton)
@@ -432,12 +456,49 @@ public class ControlPanel extends JFrame implements ActionListener {
 
     /**
      * Pastes character from system clipboard, keeping existing colors. (Cmd+V)
+     * Prüft zuerst, ob ein internes Glyph vorhanden ist, das bevorzugt wird.
+     * Falls nicht, wird der externe Zeichenzwischenspeicher verwendet.
      */
     public void pasteCharacterFromClipboard() {
-        if (currentClickedGlyph == null) { // Check based on current selection state
+        if (currentClickedGlyph == null) {
             Logger.println("No glyph selected to paste into.");
             return;
         }
+
+        // Prüfe zuerst, ob ein internes Glyph vorhanden ist (Zeichen + Farben)
+        if (internalClipboardGlyph != null) {
+            Logger.println("Internal glyph available, using that instead of system clipboard.");
+            pasteInternalGlyph(); // Nutze die intern gespeicherte Glyphe mit Farben
+            return;
+        }
+
+        // Prüfe als nächstes, ob Farben intern gespeichert sind
+        if (internalClipboardFgIndex != -1 && internalClipboardBgIndex != -1) {
+            // Lese nur das Zeichen aus der Zwischenablage
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            Transferable contents = clipboard.getContents(null);
+
+            if (contents != null && contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                try {
+                    String pastedText = (String) contents.getTransferData(DataFlavor.stringFlavor);
+                    if (pastedText != null && !pastedText.isEmpty()) {
+                        char charToPaste = pastedText.charAt(0);
+                        // Erstelle ein kombiniertes Glyph und füge es ein
+                        Logger.println("Using character from system clipboard with internally stored colors.");
+                        ResultGlyph combinedGlyph = new ResultGlyph(
+                                (int) charToPaste,
+                                internalClipboardFgIndex,
+                                internalClipboardBgIndex);
+                        p.replaceClickedGlyphWithGlyph(combinedGlyph);
+                        return;
+                    }
+                } catch (Exception ex) {
+                    Logger.println("Error accessing system clipboard: " + ex.getMessage());
+                }
+            }
+        }
+
+        // Fallback: Nutze nur den externen Zwischenspeicher
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         Transferable contents = clipboard.getContents(null);
 
@@ -446,7 +507,7 @@ public class ControlPanel extends JFrame implements ActionListener {
                 String pastedText = (String) contents.getTransferData(DataFlavor.stringFlavor);
                 if (pastedText != null && !pastedText.isEmpty()) {
                     char charToPaste = pastedText.charAt(0);
-                    Logger.println("Pasting external character '" + charToPaste + "' (keeping colors).");
+                    Logger.println("Pasting external character '" + charToPaste + "' (keeping current colors).");
                     p.replaceClickedGlyph(charToPaste); // Call the method in ProcessingCore
                 } else {
                     Logger.println("System clipboard is empty or contains no text.");
