@@ -846,7 +846,7 @@ public class ProcessingCore extends PApplet {
                 ResultGlyph glyphInfo = null;
                 try {
                     glyphInfo = resultGrid[y][x];
-                } catch (ArrayIndexOutOfBoundsException e) {
+                } catch (Exception e) {
                     Logger.println("ArrayIndexOutOfBoundsException: " + e.getMessage());
                     return;
                 }

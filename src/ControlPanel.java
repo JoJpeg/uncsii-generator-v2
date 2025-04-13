@@ -47,6 +47,12 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JLabel clickedCodepointLabel;
     private JLabel clickedFgIndexLabel;
     private JLabel clickedBgIndexLabel;
+    
+    // Selection Area Labels
+    private JLabel selectionXPosLabel;
+    private JLabel selectionYPosLabel;
+    private JLabel selectionWidthLabel;
+    private JLabel selectionHeightLabel;
 
     private GlyphPreviewPanel glyphPreviewPanel; // Panel to display the clicked glyph
     private ResultGlyph currentClickedGlyph; // Store the currently clicked glyph
@@ -261,6 +267,33 @@ public class ControlPanel extends JFrame implements ActionListener {
         selectionTablePanel.add(hoverBgIndexLabel);
 
         selectionInfoContainer.add(selectionTablePanel); // Add table to container
+        selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
+
+        // --- Selection Area Dimensions Panel ---
+        JPanel selectionAreaPanel = new JPanel(new GridLayout(4, 2, 8, 2));
+        selectionAreaPanel.setBorder(BorderFactory.createTitledBorder("Selection Area"));
+        
+        // Selection X
+        selectionAreaPanel.add(new JLabel("Selection X:"));
+        selectionXPosLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionAreaPanel.add(selectionXPosLabel);
+        
+        // Selection Y
+        selectionAreaPanel.add(new JLabel("Selection Y:"));
+        selectionYPosLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionAreaPanel.add(selectionYPosLabel);
+        
+        // Selection Width
+        selectionAreaPanel.add(new JLabel("Width:"));
+        selectionWidthLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionAreaPanel.add(selectionWidthLabel);
+        
+        // Selection Height
+        selectionAreaPanel.add(new JLabel("Height:"));
+        selectionHeightLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionAreaPanel.add(selectionHeightLabel);
+        
+        selectionInfoContainer.add(selectionAreaPanel);
         selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
 
         // --- Glyph Preview Panel ---
@@ -558,6 +591,43 @@ public class ControlPanel extends JFrame implements ActionListener {
             // updateClickedInfo
         } else {
             Logger.println("Internal color clipboard is empty.");
+        }
+    }
+
+    /**
+     * Updates the selection area information in the control panel.
+     * Shows the position and dimensions of the current selection area.
+     * 
+     * @param hasSelection  Whether there is an active selection
+     * @param startX        The starting X coordinate of the selection
+     * @param startY        The starting Y coordinate of the selection
+     * @param endX          The ending X coordinate of the selection
+     * @param endY          The ending Y coordinate of the selection
+     */
+    public void updateSelectionAreaInfo(boolean hasSelection, int startX, int startY, int endX, int endY) {
+        if (hasSelection && startX >= 0 && startY >= 0 && endX >= 0 && endY >= 0) {
+            // Normalize coordinates to find top-left corner and dimensions
+            int minX = Math.min(startX, endX);
+            int minY = Math.min(startY, endY);
+            int maxX = Math.max(startX, endX);
+            int maxY = Math.max(startY, endY);
+            
+            int width = maxX - minX + 1;  // +1 because it's inclusive
+            int height = maxY - minY + 1; // +1 because it's inclusive
+            
+            // Update labels with selection information
+            selectionXPosLabel.setText(String.valueOf(minX));
+            selectionYPosLabel.setText(String.valueOf(minY));
+            selectionWidthLabel.setText(String.valueOf(width));
+            selectionHeightLabel.setText(String.valueOf(height));
+            
+            Logger.println("Selection Area: (" + minX + "," + minY + ") Width=" + width + " Height=" + height);
+        } else {
+            // No selection, clear the information
+            selectionXPosLabel.setText("-");
+            selectionYPosLabel.setText("-");
+            selectionWidthLabel.setText("-");
+            selectionHeightLabel.setText("-");
         }
     }
 
