@@ -34,6 +34,20 @@ public class FileHandler {
         // Use Frame as parent, can be null
         Frame parentFrame = null;
         FileDialog fileDialog = new FileDialog(parentFrame, message, mode);
+
+        // Set initial directory based on operation type
+        if (mode == FileDialog.SAVE && saveFileWorkPath != null) {
+            File dir = new File(saveFileWorkPath).getParentFile();
+            if (dir != null && dir.exists()) {
+                fileDialog.setDirectory(dir.getAbsolutePath());
+            }
+        } else if (mode == FileDialog.LOAD && loadFileWorkPath != null) {
+            File dir = new File(loadFileWorkPath).getParentFile();
+            if (dir != null && dir.exists()) {
+                fileDialog.setDirectory(dir.getAbsolutePath());
+            }
+        }
+
         // For macOS, set system property to use native file dialog
         // System.setProperty("apple.awt.fileDialogForDirectories", "true"); // If
         // needed for directories
@@ -44,6 +58,16 @@ public class FileHandler {
 
         if (directory != null && filename != null) {
             lastSelection = new File(directory, filename);
+
+            // Update the appropriate path based on operation type
+            if (mode == FileDialog.SAVE) {
+                saveFileWorkPath = lastSelection.getAbsolutePath();
+                Logger.println("Save working path updated to: " + directory);
+            } else if (mode == FileDialog.LOAD) {
+                loadFileWorkPath = lastSelection.getAbsolutePath();
+                Logger.println("Load working path updated to: " + directory);
+            }
+
             return lastSelection;
         } else {
             lastSelection = null;
@@ -53,14 +77,23 @@ public class FileHandler {
         // System.setProperty("apple.awt.fileDialogForDirectories", "false");
     }
 
-    public static void setLastAsWorkingDirectory() {
+    public static void setLastAsWorkingDirectory(boolean forLoad) {
         if (lastSelection != null) {
-            saveFileWorkPath = lastSelection.getAbsolutePath();
-            Logger.println("Working directory set to: " + saveFileWorkPath);
+            if (forLoad) {
+                loadFileWorkPath = lastSelection.getAbsolutePath();
+                Logger.println("Load working directory set to: " + loadFileWorkPath);
+            } else {
+                saveFileWorkPath = lastSelection.getAbsolutePath();
+                Logger.println("Save working directory set to: " + saveFileWorkPath);
+            }
         } else {
             Logger.println("No file selected, working directory not set.");
         }
+    }
 
+    // Keep the original method for backward compatibility
+    public static void setLastAsWorkingDirectory() {
+        setLastAsWorkingDirectory(false); // Default to save path for backward compatibility
     }
 
     public static void saveResult(String filePath, ProcessingCore p) {

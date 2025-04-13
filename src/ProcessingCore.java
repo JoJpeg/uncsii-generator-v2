@@ -291,8 +291,16 @@ public class ProcessingCore extends PApplet {
     public void loadImage() {
         File imageFile = FileHandler.loadFile("Select Image");
         if (imageFile == null) {
-            Logger.println("No image file selected. Exiting.");
-            controlPanel.setState(ControlPanel.PanelState.SETUP);
+            Logger.println("File selection canceled.");
+
+            // Check if we already had an image loaded before this operation
+            if (resultGrid != null && imageLoadingState == ImageLoadingState.LOADED) {
+                // Keep the EDIT state since we already have an image loaded
+                controlPanel.setState(ControlPanel.PanelState.EDIT);
+                Logger.println("Returning to edit mode with previously loaded image.");
+            } else {
+                controlPanel.setState(ControlPanel.PanelState.SETUP);
+            }
             return;
         }
 

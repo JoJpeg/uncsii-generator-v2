@@ -12,6 +12,8 @@ import processing.core.PApplet;
 public class FileIOHandler {
     private PApplet app;
     private String defaultOutputPath = "output.usc";
+    private static String saveFileWorkPath;
+    private static String loadFileWorkPath;
 
     public FileIOHandler(PApplet app) {
         this.app = app;
@@ -27,9 +29,21 @@ public class FileIOHandler {
                 "Image Files", "jpg", "jpeg", "png", "gif", "bmp");
         chooser.setFileFilter(filter);
 
+        // Set initial directory if we have a saved path
+        if (loadFileWorkPath != null) {
+            File dir = new File(loadFileWorkPath).getParentFile();
+            if (dir != null && dir.exists()) {
+                chooser.setCurrentDirectory(dir);
+            }
+        }
+
         int result = chooser.showOpenDialog(null);
         if (result == JFileChooser.APPROVE_OPTION) {
-            return chooser.getSelectedFile();
+            File selected = chooser.getSelectedFile();
+            // Save the working path for next time
+            loadFileWorkPath = selected.getAbsolutePath();
+            Logger.println("Load working path updated to: " + selected.getParent());
+            return selected;
         }
         return null;
     }
@@ -44,6 +58,14 @@ public class FileIOHandler {
                 "UNSCII Files", "usc");
         chooser.setFileFilter(filter);
 
+        // Set initial directory if we have a saved path
+        if (saveFileWorkPath != null) {
+            File dir = new File(saveFileWorkPath).getParentFile();
+            if (dir != null && dir.exists()) {
+                chooser.setCurrentDirectory(dir);
+            }
+        }
+
         int result = chooser.showSaveDialog(null);
         if (result == JFileChooser.APPROVE_OPTION) {
             File selected = chooser.getSelectedFile();
@@ -51,6 +73,9 @@ public class FileIOHandler {
             if (!path.toLowerCase().endsWith(".usc")) {
                 selected = new File(path + ".usc");
             }
+            // Save the working path for next time
+            saveFileWorkPath = selected.getAbsolutePath();
+            Logger.println("Save working path updated to: " + selected.getParent());
             return selected;
         }
         return null;
@@ -60,6 +85,9 @@ public class FileIOHandler {
      * Save ASCII art result to a file
      */
     public boolean saveResult(String filePath, AsciiArtResult result) {
+        // Save the working path
+        saveFileWorkPath = filePath;
+
         if (result == null || result.isEmpty()) {
             Logger.println("No result to save.");
             return false;
