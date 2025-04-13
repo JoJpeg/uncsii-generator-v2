@@ -115,6 +115,13 @@ public class ProcessingCore extends PApplet {
     public boolean startedDragging = false; // Track if dragging started (for panning or selection)
     public long clickStart = 0; // Track click time
 
+    // Variablen zum Speichern der Auswahl zwischen Bildern
+    private boolean savedSelectionActive = false;
+    private int savedSelectionStartX = -1;
+    private int savedSelectionStartY = -1;
+    private int savedSelectionEndX = -1;
+    private int savedSelectionEndY = -1;
+
     // ========== PROCESSING LIFECYCLE METHODS ==========
 
     @Override
@@ -289,6 +296,8 @@ public class ProcessingCore extends PApplet {
      * Loads an image from the file system
      */
     public void loadImage() {
+        saveCurrentSelection(); // Save the current selection before loading a new image
+
         File imageFile = FileHandler.loadFile("Select Image");
         if (imageFile == null) {
             Logger.println("File selection canceled.");
@@ -312,6 +321,8 @@ public class ProcessingCore extends PApplet {
             controlPanel.setState(ControlPanel.PanelState.SETUP);
             return;
         }
+
+        restoreSavedSelection(); // Restore the saved selection after loading the new image
 
         controlPanel.setState(ControlPanel.PanelState.EDIT);
     }
@@ -1540,6 +1551,57 @@ public class ProcessingCore extends PApplet {
     }
 
     /**
+     * Speichert die aktuelle Auswahl, damit sie nach dem Laden eines neuen Bildes
+     * wiederhergestellt werden kann
+     */
+    private void saveCurrentSelection() {
+        if (hasSelection && selectionStartX >= 0 && selectionStartY >= 0 &&
+                selectionEndX >= 0 && selectionEndY >= 0) {
+            savedSelectionActive = true;
+            savedSelectionStartX = selectionStartX;
+            savedSelectionStartY = selectionStartY;
+            savedSelectionEndX = selectionEndX;
+            savedSelectionEndY = selectionEndY;
+            Logger.println("Selection saved: (" + savedSelectionStartX + "," + savedSelectionStartY +
+                    ") to (" + savedSelectionEndX + "," + savedSelectionEndY + ")");
+        } else {
+            savedSelectionActive = false;
+            savedSelectionStartX = savedSelectionStartY = savedSelectionEndX = savedSelectionEndY = -1;
+        }
+    }
+
+    /**
+     * Versucht, die gespeicherte Auswahl wiederherzustellen und passt sie an die
+     * neuen Bilddimensionen an
+     */
+    private void restoreSavedSelection() {
+        if (!savedSelectionActive) {
+            return; // Keine gespeicherte Auswahl vorhanden
+        }
+
+        // Sicherheitsüberprüfung: Ist die Auswahl noch im gültigen Bereich des neuen
+        // Bildes?
+        int newStartX = Math.min(savedSelectionStartX, gridWidth - 1);
+        int newStartY = Math.min(savedSelectionStartY, gridHeight - 1);
+        int newEndX = Math.min(savedSelectionEndX, gridWidth - 1);
+        int newEndY = Math.min(savedSelectionEndY, gridHeight - 1);
+
+        // Nur wiederherstellen, wenn die Auswahl noch gültig ist
+        if (newStartX >= 0 && newStartY >= 0 && newEndX >= 0 && newEndY >= 0) {
+            setSelection(true, newStartX, newStartY, newEndX, newEndY);
+            Logger.println("Selection restored: (" + newStartX + "," + newStartY +
+                    ") to (" + newEndX + "," + newEndY + ")");
+
+            // Informiere das ControlPanel über die aktualisierte Auswahl
+            if (controlPanel != null) {
+                controlPanel.updateSelectionAreaInfo(true, newStartX, newStartY, newEndX, newEndY);
+            }
+        } else {
+            Logger.println("Could not restore selection because it would be outside the new image boundaries.");
+        }
+    }
+
+    /**
      * Macht die letzte Aktion rückgängig
      */
     public void undo() {
@@ -1626,6 +1688,15 @@ public class ProcessingCore extends PApplet {
         if (controlPanel != null) {
             controlPanel.updateScaleSelector(DISPLAY_SCALE);
         }
+    }
+
+    /**
+     * Zentriert das aktuelle Bild im Anzeigefenster
+     */
+    public void centerImage() {
+        drawX = (width - drawW) / 2;
+        drawY = (height - drawH) / 2;
+        Logger.println("Image centered in view");
     }
 
     // ========== UTILITY METHODS ==========

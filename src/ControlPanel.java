@@ -34,6 +34,7 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JButton copyColorsButton;
     private JButton pasteColorsButton;
     private JButton flipColorsButton; // New Button
+    private JButton centerImageButton; // Füge einen Button zum Zentrieren des Bildes hinzu
 
     // Selection Info Labels
     private JLabel hoverXPosLabel;
@@ -216,7 +217,14 @@ public class ControlPanel extends JFrame implements ActionListener {
         scaleSelector = new JComboBox<>(scales);
         scaleSelector.setSelectedIndex(1); // Default to 2
         scaleSelector.addActionListener(this);
-        scalePanel.add(scaleSelector);
+        scalePanel.add(scaleSelector); // Diese Zeile war vergessen worden
+
+        // Center Image button neben dem Scale Selector
+        centerImageButton = new JButton("Center Image");
+        centerImageButton.setToolTipText("Center the current image in the view");
+        centerImageButton.addActionListener(this);
+        scalePanel.add(centerImageButton);
+
         // Constrain the panel's max height to prevent vertical stretching
         scalePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, scaleSelector.getPreferredSize().height));
         topPanel.add(scalePanel);
@@ -422,6 +430,8 @@ public class ControlPanel extends JFrame implements ActionListener {
                 pasteInternalColors();
             else if (source == flipColorsButton) // Handle new button click
                 p.flipClickedGlyphColors(); // Call the new method in ProcessingCore
+            else if (source == centerImageButton) // Handle center image button click
+                p.centerImage(); // Call the method in ProcessingCore
 
         } catch (Exception ex) {
             Logger.println("Fehler bei Button-Aktion: " + ex.getMessage());
