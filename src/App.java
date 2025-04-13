@@ -6,3 +6,11 @@ public class App {
 
     }
 }
+
+// TODO:
+/*
+ * Make it possible to change the dimesions
+ * Load usc2
+ * 
+ * 
+ */
