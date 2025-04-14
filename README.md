@@ -1,21 +1,23 @@
 # UNSCII Generator V2
 
-A Java application for converting images into ASCII art using the UNSCII font and the xterm-256 color palette, built with Processing and Swing. The pattern matching is exact enough that you can design actual things like UI with it. I am using it for my personal terminal based software thats running on a Pi.
+A Java application for converting images into ASCII art using the awesome [unscii](https://github.com/viznut/unscii) font (8x8 only) and the xterm-256 color palette, built with Processing and Swing. The pattern matching is exact enough that you can design actual things like UI with it. I am using it for my personal terminal based software thats running on a Pi.
 
-This code is really mainly build by me telling an AI what I want. I was making minor manual fixups. Thats why some things are still German, the AI was switching between languages :) and the app is version 2 because AI destroyed my version 1 before I saved it. All Hail the new Gods.
+This code is really mainly build by me telling an AI what I want. I was making minor manual fixups. Thats why some things are still German, the AI was switching between languages. Also this thing is really tailored to my needs, probably not verrrry useful for anybody but feel free to fork and send pull requests. Would be interesting to see where this goes when adding support for more fonts. The app is version 2 because AI destroyed my version 1 before I saved it. All Hail the new Gods. 
 
-![Screenshot of UNSCII Generator V2](animated.png)
-![Screenshot of UNCSII Generator Showing a differnt case](screenshot2-v2.1.png)
-Adding some noise to a gradient makes the result more interesting! Somebody should try it with some dithering patterns.
-![Screenshot of UNCSII Generator Showing a differnt case](screenshot4-v2.1.png)
-![Screenshot of UNCSII Generator Showing a differnt case](screenshot3-v2.1.png)
+![Screenshot of UNSCII Generator V2](readme-data/animated.png)
+This example shows how I am using the generators capabilites to find the exact match to design my TextBased Ui. Make sure you carefully place your symbols so that they match the 8x8 grid of the [unscii](https://github.com/viznut/unscii) Font. This way you can really build Text UI by just painting an image and throwing it into the generator.
 
+![Screenshot of UNCSII Generator Showing a differnt case](readme-data/screenshot2-v2.1.png)
+Adding some noise to the image makes the result more interesting and helps to display gradients in a better way! Somebody should try it with some actual dithering patterns.
+![Screenshot of UNCSII Generator Showing a differnt case](readme-data/screenshot4-v2.1.png)
+![Screenshot of UNCSII Generator Showing a differnt case](readme-data/screenshot3-v2.1.png)
+_All media is taken from my personal project [Xorm](https://www.instagram.com/xorm_epos)_
 
 
 ## Features
 
 *   **Image Loading:** Load various image formats (JPG, PNG, GIF, BMP).
-*   **UNSCII Conversion:** Convert images into a grid of characters based on the UNSCII 8x8 font patterns.
+*   **UNSCII Conversion:** Convert images into a grid of characters based on the [unscii](https://github.com/viznut/unscii) 8x8 font patterns.
 *   **Color Matching:**
     *   Uses the standard xterm-256 color palette.
     *   Supports exact 2-color matching for optimal representation where possible.
@@ -37,7 +39,7 @@ Adding some noise to a gradient makes the result more interesting! Somebody shou
 
 ### File Format
 
-The File Format is a readable text format. You can open it in a texteditor. I added a Class that can parse it for you. 
+The File Format is a readable text format. You can open it in a texteditor. I added some java parsing classes to the source that can parse it for you if you want to use the text somehow. 
 
 ### Prerequisites
 
@@ -82,4 +84,4 @@ Download the .jar from the releases or use the one in the root folder. It should
 - [ ] Add batch processing of multiple images
 - [ ] Write a .unc2 importer 
 - [ ] add some basic image editing to change contrasts, hue and saturation and add noise
-
+- [ ] export the result as a png for casual use
