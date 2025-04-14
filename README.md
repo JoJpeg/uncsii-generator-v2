@@ -1,4 +1,4 @@
-# UNSCII Generator V2
+# UNSCII Image to ASCII-Art Generator V2
 
 A Java application for converting images into ASCII art using the awesome [unscii](https://github.com/viznut/unscii) font (8x8 only) and the xterm-256 color palette, built with Processing and Swing. The pattern matching is exact enough that you can design actual things like UI with it. I am using it for my personal terminal based software thats running on a Pi.
 
