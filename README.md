@@ -4,7 +4,7 @@ A Java application for converting images into ASCII art using the UNSCII font an
 
 This code is really mainly build by me telling an AI what I want. I was making minor manual fixups. Thats why some things are still German, the AI was switching between languages :) and the app is version 2 because AI destroyed my version 1 before I saved it. All Hail the new Gods.
 
-![Screenshot of UNSCII Generator V2](screenshot-v2.1.png)
+![Screenshot of UNSCII Generator V2](screenshot_animated-v2.1.png)
 ![Screenshot of UNCSII Generator Showing a differnt case](screenshot2-v2.1.png)
 Adding some noise to a gradient makes the result more interesting! Somebody should try it with some dithering patterns.
 ![Screenshot of UNCSII Generator Showing a differnt case](screenshot4-v2.1.png)
