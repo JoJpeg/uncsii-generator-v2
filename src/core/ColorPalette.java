@@ -19,86 +19,83 @@ public class ColorPalette {
 
     /**
      * Sets up the xterm-256 color palette
-     * With improved transparency handling
+     * 100% xterm standard compliant
      */
     private void setupXterm256Palette() {
-        // Index 0: Vollständig transparent (komplett durchsichtig)
-        colors[0] = app.color(0, 0, 0, 0);
+        // Die xterm-256 Farbpalette hat folgende Struktur:
+        // 0-7: Standard-Farben (schwarz, rot, grün, gelb, blau, magenta, cyan, weiß)
+        // 8-15: Helle Varianten der Standard-Farben
+        // 16-231: 6x6x6 RGB-Farbwürfel
+        // 232-255: Graustufen
 
-        // Index 1: Komplett schwarz (vollständig opak)
-        // Es ist wichtig, dass Index 1 vollständig opakes Schwarz ist
-        colors[1] = app.color(0, 0, 0, 255);
+        // Standard-Farben (0-7)
+        colors[0] = app.color(0, 0, 0); // 0: Schwarz
+        colors[1] = app.color(128, 0, 0); // 1: Rot
+        colors[2] = app.color(0, 128, 0); // 2: Grün
+        colors[3] = app.color(128, 128, 0); // 3: Gelb
+        colors[4] = app.color(0, 0, 128); // 4: Blau
+        colors[5] = app.color(128, 0, 128); // 5: Magenta
+        colors[6] = app.color(0, 128, 128); // 6: Cyan
+        colors[7] = app.color(192, 192, 192); // 7: Weiß/Hellgrau
 
-        // Standard 16 Farben (jetzt startend ab Index 2)
-        int[] basic16 = {
-                app.color(128, 0, 0), app.color(0, 128, 0), app.color(128, 128, 0),
-                app.color(0, 0, 128), app.color(128, 0, 128), app.color(0, 128, 128), app.color(192, 192, 192),
-                app.color(128, 128, 128), app.color(255, 0, 0), app.color(0, 255, 0), app.color(255, 255, 0),
-                app.color(0, 0, 255), app.color(255, 0, 255), app.color(0, 255, 255), app.color(255, 255, 255)
-        };
+        // Helle Varianten (8-15)
+        colors[8] = app.color(128, 128, 128); // 8: Dunkelgrau/helles Schwarz
+        colors[9] = app.color(255, 0, 0); // 9: Helles Rot
+        colors[10] = app.color(0, 255, 0); // 10: Helles Grün
+        colors[11] = app.color(255, 255, 0); // 11: Helles Gelb
+        colors[12] = app.color(0, 0, 255); // 12: Helles Blau
+        colors[13] = app.color(255, 0, 255); // 13: Helles Magenta
+        colors[14] = app.color(0, 255, 255); // 14: Helles Cyan
+        colors[15] = app.color(255, 255, 255); // 15: Helles Weiß
 
-        // Kopiere die 16 Standardfarben (startend ab Index 2)
-        System.arraycopy(basic16, 0, colors, 2, basic16.length);
-
-        // Generiere den 216-Farben-Würfel (6x6x6)
-        int index = 18; // 2 (für die ersten beiden Indizes) + 16 (für die Standardfarben)
+        // Farbwürfel (16-231): 6x6x6 RGB
+        int index = 16;
         for (int r = 0; r < 6; r++) {
             for (int g = 0; g < 6; g++) {
                 for (int b = 0; b < 6; b++) {
                     int red = r > 0 ? (r * 40 + 55) : 0;
                     int green = g > 0 ? (g * 40 + 55) : 0;
                     int blue = b > 0 ? (b * 40 + 55) : 0;
-                    // Setze immer den Alpha-Wert auf vollständig opak
-                    colors[index++] = app.color(red, green, blue, 255);
+                    colors[index++] = app.color(red, green, blue);
                 }
             }
         }
 
-        // Generiere die Graustufen-Rampe (24 Farben)
+        // Graustufen (232-255)
         for (int i = 0; i < 24; i++) {
             int value = i * 10 + 8;
-            // Setze immer den Alpha-Wert auf vollständig opak
-            colors[index++] = app.color(value, value, value, 255);
+            colors[index++] = app.color(value, value, value);
         }
 
-        Logger.println("Palette initialisiert mit verbesserter Alpha-Kanal-Unterstützung:");
-        Logger.println("- Index 0: Vollständig transparent (Alpha = 0)");
-        Logger.println("- Index 1: Vollständig opakes Schwarz (Alpha = 255)");
-
-        if (index != PALETTE_SIZE) {
-            Logger.println("WARNUNG: Farbpalettengröße ist nicht " + PALETTE_SIZE + "!");
-        }
+        Logger.println("Palette initialisiert mit Standard Xterm-256 Farbwerten");
     }
 
     /**
      * Find the nearest palette color index for an RGB color
-     * With improved alpha channel support
+     * Properly handles RGB distance without mixing alpha concerns
      */
     public int findNearestColorIndex(int rgbColor) {
-        // Check for transparency first
-        int alpha = (rgbColor >> 24) & 0xFF;
-
-        // Only treat completely transparent pixels (alpha == 0) as transparent
-        // This ensures black pixels with alpha > 0 are not mistakenly treated as
-        // transparent
-        if (alpha == 0) {
-            return 0; // Assuming index 0 is reserved for transparent color
-        }
-
-        int bestIndex = 1; // Start from index 1 (skip transparent)
-        double minDistSq = Double.MAX_VALUE;
-
+        // Wir berücksichtigen nur die RGB-Komponenten, nicht Alpha
         float r1 = app.red(rgbColor);
         float g1 = app.green(rgbColor);
         float b1 = app.blue(rgbColor);
 
-        // Start searching from index 1 to skip the transparent color at index 0
-        for (int i = 1; i < colors.length; i++) {
+        // Spezialfall für schwarze Pixel (für bessere Kompatibilität)
+        if (r1 <= 5 && g1 <= 5 && b1 <= 5) {
+            return 0; // Schwarzer Index in xterm
+        }
+
+        int bestIndex = 0;
+        double minDistSq = Double.MAX_VALUE;
+
+        // Durchsuche die gesamte Palette (0-255)
+        for (int i = 0; i < colors.length; i++) {
             int palColor = colors[i];
             float r2 = app.red(palColor);
             float g2 = app.green(palColor);
             float b2 = app.blue(palColor);
 
+            // Berechne die RGB-Distanz (ohne Alpha-Komponente)
             double distSq = (r1 - r2) * (r1 - r2) +
                     (g1 - g2) * (g1 - g2) +
                     (b1 - b2) * (b1 - b2);
@@ -109,7 +106,7 @@ public class ColorPalette {
             }
 
             if (minDistSq == 0) {
-                break; // Exact match found
+                break; // Exakter Match gefunden
             }
         }
 
@@ -118,108 +115,53 @@ public class ColorPalette {
 
     /**
      * Find the two most dominant palette colors in a block of pixels
-     * With improved handling of black pixels
+     * With proper alpha handling - returns correct colors regardless of
+     * transparency
      */
     public int[] findDominantColors(int[] blockPixels) {
         int[] counts = new int[PALETTE_SIZE];
+        int totalPixels = 0;
 
-        // Count occurrences of each palette color
-        int totalNonTransparentPixels = 0;
+        // Count occurrences of each palette color, ignoring fully transparent pixels
         for (int pixel : blockPixels) {
             int alpha = (pixel >> 24) & 0xFF;
 
-            // Behandle nur vollständig transparente Pixel (alpha = 0) als transparent
-            int nearestIndex;
-            if (alpha == 0) {
-                nearestIndex = 0; // Transparenzindex
-            } else {
-                // Wenn der Pixel schwarz oder fast schwarz ist und opak, dann verwende den
-                // Index für opakes Schwarz (1)
-                float r = app.red(pixel);
-                float g = app.green(pixel);
-                float b = app.blue(pixel);
-
-                if (r <= 5 && g <= 5 && b <= 5 && alpha > 200) {
-                    // Fast schwarz und opak
-                    nearestIndex = 1; // Direkt als opakes Schwarz einstufen
-                } else {
-                    // Normal nächste Farbe finden
-                    nearestIndex = findNearestColorIndex(pixel);
-                }
-
-                totalNonTransparentPixels++;
+            if (alpha > 0) { // Nur nicht vollständig transparente Pixel berücksichtigen
+                int nearestIndex = findNearestColorIndex(pixel);
+                counts[nearestIndex]++;
+                totalPixels++;
             }
+        }
 
-            counts[nearestIndex]++;
+        // Falls alle Pixel transparent sind, verwende Schwarz als Standardfarbe
+        if (totalPixels == 0) {
+            return new int[] { 0, 15 }; // Schwarz und Weiß als Standardfarben
         }
 
         // Find the two most frequent colors
         int bestIndex1 = -1, bestIndex2 = -1;
         int maxCount1 = -1, maxCount2 = -1;
 
-        // Priorisiere nicht-transparente Farben, wenn ein signifikanter Teil des Blocks
-        // nicht transparent ist
-        boolean hasSignificantContent = totalNonTransparentPixels > blockPixels.length * 0.2; // Mindestens 20% nicht
-                                                                                              // transparent
-
-        // Zuerst nicht-transparente Farben zählen, wenn genug Inhalt vorhanden ist
-        if (hasSignificantContent) {
-            for (int i = 1; i < PALETTE_SIZE; i++) { // Start bei 1, um Transparenz zu überspringen
-                if (counts[i] > maxCount1) {
-                    maxCount2 = maxCount1;
-                    bestIndex2 = bestIndex1;
-                    maxCount1 = counts[i];
-                    bestIndex1 = i;
-                } else if (counts[i] > maxCount2) {
-                    maxCount2 = counts[i];
-                    bestIndex2 = i;
-                }
-            }
-        }
-
-        // Wenn nicht genug nicht-transparente Pixel oder keine dominanten Farben
-        // gefunden wurden, alle Indizes berücksichtigen
-        if (!hasSignificantContent || bestIndex1 == -1) {
-            maxCount1 = maxCount2 = -1;
-            bestIndex1 = bestIndex2 = -1;
-
-            for (int i = 0; i < PALETTE_SIZE; i++) {
-                if (counts[i] > maxCount1) {
-                    maxCount2 = maxCount1;
-                    bestIndex2 = bestIndex1;
-                    maxCount1 = counts[i];
-                    bestIndex1 = i;
-                } else if (counts[i] > maxCount2) {
-                    maxCount2 = counts[i];
-                    bestIndex2 = i;
-                }
+        for (int i = 0; i < PALETTE_SIZE; i++) {
+            if (counts[i] > maxCount1) {
+                maxCount2 = maxCount1;
+                bestIndex2 = bestIndex1;
+                maxCount1 = counts[i];
+                bestIndex1 = i;
+            } else if (counts[i] > maxCount2) {
+                maxCount2 = counts[i];
+                bestIndex2 = i;
             }
         }
 
         // Handle edge cases
         if (bestIndex1 == -1) {
-            // Wenn keine Farbe gefunden wurde, verwende opakes Schwarz
-            bestIndex1 = 1; // Opakes Schwarz
+            bestIndex1 = 0; // Default to black
         }
 
         if (bestIndex2 == -1 || bestIndex2 == bestIndex1) {
             // Wähle einen guten Kontrast zur ersten Farbe
-            // Wenn die erste Farbe Schwarz ist, wähle Weiß als zweite, ansonsten Schwarz
-            bestIndex2 = (bestIndex1 == 1) ? 17 : 1; // Index 17 sollte Weiß sein, 1 ist opakes Schwarz
-
-            // Versuche eine dritte Farbe zu finden, wenn die ersten beiden identisch sind
-            int thirdMaxCount = -1;
-            int thirdBestIndex = -1;
-            for (int i = 0; i < PALETTE_SIZE; i++) {
-                if (i != bestIndex1 && counts[i] > thirdMaxCount) {
-                    thirdMaxCount = counts[i];
-                    thirdBestIndex = i;
-                }
-            }
-
-            if (thirdBestIndex != -1 && thirdMaxCount > 0) {
-                bestIndex2 = thirdBestIndex;
-            }
+            bestIndex2 = (bestIndex1 == 0) ? 15 : 0; // Wenn die erste Farbe Schwarz ist, wähle Weiß, sonst Schwarz
         }
 
         // Logging für Debugging

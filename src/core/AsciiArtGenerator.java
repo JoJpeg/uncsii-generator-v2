@@ -75,18 +75,33 @@ public class AsciiArtGenerator {
         Set<Integer> uniqueIndices = new HashSet<>();
         int[] quantizedIndices = new int[GlyphManager.PIXEL_COUNT];
 
-        // Extract average alpha from block pixels for debugging
+        // Extrahiere durchschnittlichen Alpha-Wert
         int totalAlpha = 0;
+        int nonTransparentPixels = 0;
+
         for (int pixel : blockPixels) {
-            totalAlpha += (pixel >> 24) & 0xFF;
+            int alpha = (pixel >> 24) & 0xFF;
+            if (alpha > 0) {
+                totalAlpha += alpha;
+                nonTransparentPixels++;
+            }
         }
-        int avgAlpha = totalAlpha / blockPixels.length;
+
+        // Berechne Durchschnitts-Alpha nur für nicht-transparente Pixel
+        int avgAlpha = (nonTransparentPixels > 0) ? totalAlpha / nonTransparentPixels : 0;
 
         // Quantize pixels to palette indices
         for (int i = 0; i < GlyphManager.PIXEL_COUNT; i++) {
-            int nearestIndex = colorPalette.findNearestColorIndex(blockPixels[i]);
-            uniqueIndices.add(nearestIndex);
-            quantizedIndices[i] = nearestIndex;
+            int alpha = (blockPixels[i] >> 24) & 0xFF;
+            // Nur nicht-transparente Pixel quantisieren
+            if (alpha > 0) {
+                int nearestIndex = colorPalette.findNearestColorIndex(blockPixels[i]);
+                uniqueIndices.add(nearestIndex);
+                quantizedIndices[i] = nearestIndex;
+            } else {
+                // Transparente Pixel markieren wir speziell
+                quantizedIndices[i] = -1; // Spezieller Wert für transparente Pixel
+            }
         }
 
         // Special case: Single-color block
@@ -106,9 +121,6 @@ public class AsciiArtGenerator {
                     return new ResultGlyph(codePoint, singleIndex, singleIndex, avgAlpha);
                 }
             }
-
-            // If no solid pattern found, continue to normal matching process
-            // by finding a second color to use with the block
         }
 
         // Exact match only possible with exactly 2 colors (or one color with special
@@ -175,17 +187,25 @@ public class AsciiArtGenerator {
      * Find an approximate match for a block using dominant colors
      */
     private ResultGlyph findApproximateMatch(int[] blockPixels) {
-        // Find two dominant colors
+        // Extrahiere durchschnittlichen Alpha-Wert
+        int totalAlpha = 0;
+        int nonTransparentPixels = 0;
+
+        for (int pixel : blockPixels) {
+            int alpha = (pixel >> 24) & 0xFF;
+            if (alpha > 0) {
+                totalAlpha += alpha;
+                nonTransparentPixels++;
+            }
+        }
+
+        // Berechne Durchschnitts-Alpha nur für nicht-transparente Pixel
+        int avgAlpha = (nonTransparentPixels > 0) ? totalAlpha / nonTransparentPixels : 0;
+
+        // Find two dominant colors (ignoriert bereits vollständig transparente Pixel)
         int[] dominantIndices = colorPalette.findDominantColors(blockPixels);
         int color1Index = dominantIndices[0];
         int color2Index = dominantIndices[1];
-
-        // Extract average alpha from block pixels for debugging
-        int totalAlpha = 0;
-        for (int pixel : blockPixels) {
-            totalAlpha += (pixel >> 24) & 0xFF;
-        }
-        int avgAlpha = totalAlpha / blockPixels.length;
 
         // Find best character and color combination
         int bestCodePoint = 0;
@@ -222,7 +242,7 @@ public class AsciiArtGenerator {
             }
         }
 
-        // Return result with extracted alpha value for debugging
+        // Return result with extracted alpha value
         return new ResultGlyph(bestCodePoint, bestFgIndex, bestBgIndex, avgAlpha);
     }
 }

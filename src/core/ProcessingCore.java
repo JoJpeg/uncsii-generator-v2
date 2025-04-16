@@ -850,34 +850,32 @@ public class ProcessingCore extends PApplet {
 
     /**
      * Find the nearest palette color index for an RGB color
-     * Mit verbesserter Alpha-Kanal-Unterstützung und speziellem Handling für
-     * Schwarz
+     * Mit xterm-256 kompatibler Farbbehandlung
      */
     int findNearestPaletteIndex(int rgbColor) {
         // Extract alpha channel value
         int alpha = (rgbColor >> 24) & 0xFF;
 
-        // Nur vollständig transparente Pixel (alpha = 0) als transparent behandeln
+        // Vollständig transparente Pixel als Schwarz behandeln (xterm Index 0)
         if (alpha == 0) {
-            return 0; // Index 0 ist für vollständige Transparenz reserviert
+            return 0; // In xterm ist 0 Schwarz
         }
 
         // Wenn der Pixel schwarz oder nahezu schwarz und opak ist,
-        // direkt opakes Schwarz zurückgeben (Index 1)
+        // direkt opakes Schwarz zurückgeben (Index 0)
         float r = red(rgbColor);
         float g = green(rgbColor);
         float b = blue(rgbColor);
         if (r <= 5 && g <= 5 && b <= 5 && alpha > 200) {
-            return 1; // Index 1 ist opakes Schwarz
+            return 0; // In xterm ist 0 Schwarz
         }
 
-        // Für alle anderen Pixel (einschließlich schwarzer Pixel mit Alpha > 0)
-        // finde den nächsten Farbindex in der Palette
-        int bestIndex = 1; // Starte bei 1, da 0 für Transparenz reserviert ist
+        // Für alle anderen Pixel den nächsten Farbindex in der Palette finden
+        int bestIndex = 0;
         double minDistSq = Double.MAX_VALUE;
 
-        // Berücksichtige alle Nicht-Transparenz-Indizes (ab Index 1)
-        for (int i = 1; i < colorPalette.length; i++) {
+        // Die xterm Palette durchsuchen (alle Indizes)
+        for (int i = 0; i < colorPalette.length; i++) {
             int palColor = colorPalette[i];
             float r2 = red(palColor);
             float g2 = green(palColor);
@@ -1100,33 +1098,64 @@ public class ProcessingCore extends PApplet {
             int alphaValue) {
         noStroke();
 
-        // Determine transparency based on the stored alpha value
-        boolean isTransparentBg = bgCol == colorPalette[0] || alphaValue < 5;
+        // Prüfen, ob aufgrund des Alpha-Wertes der Hintergrund transparent gerendert
+        // werden soll
+        boolean useTransparentBackground = (alphaValue < 127);
 
         for (int y = 0; y < GLYPH_HEIGHT; y++) {
             for (int x = 0; x < GLYPH_WIDTH; x++) {
                 int bitIndex = y * GLYPH_WIDTH + x;
                 boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
 
-                // Set the fill color
-                int pixelColor = pixelOn ? fgCol : bgCol;
+                // Set the fill color based on pattern and transparency setting
+                int pixelColor = -1;
+                boolean shouldDraw = true;
 
-                // Apply the alpha value to non-transparent pixels for debugging visibility
-                if (pixelColor != colorPalette[0]) {
-                    // Only modify the alpha if it's not already transparent
-                    int alpha = (pixelColor >> 24) & 0xFF;
-                    if (alpha > 0) {
-                        pixelColor = (pixelColor & 0x00FFFFFF) | (alphaValue << 24);
+                if (pixelOn) {
+                    // Für Vordergrundpixel verwenden wir immer die Vordergrundfarbe
+                    pixelColor = fgCol;
+
+                    // Bei voll transparenten Glyphen (Alpha = 0) zeichnen wir auch Vordergrund
+                    // nicht
+                    if (alphaValue == 0) {
+                        shouldDraw = false;
+                    }
+                } else {
+                    // Für Hintergrundpixel entscheiden wir basierend auf dem Alpha-Wert
+                    if (useTransparentBackground) {
+                        // Wenn Alpha < 127, zeichnen wir den Hintergrund nicht (transparent)
+                        shouldDraw = false;
+                    } else {
+                        // Ansonsten verwenden wir die Hintergrundfarbe
+                        pixelColor = bgCol;
                     }
                 }
 
-                // Only draw pixel if it's not transparent background
-                if (!isTransparentBg || pixelOn) {
+                // Nur zeichnen, wenn das Pixel nicht transparent sein soll
+                if (shouldDraw) {
+                    // Wir passen den Alpha-Wert der Farbe entsprechend an (außer bei voller
+                    // Transparenz)
+                    if (alphaValue > 0 && alphaValue < 255) {
+                        // Alpha-Wert anwenden, aber nur wenn nicht bereits voll opak oder transparent
+                        pixelColor = adjustAlpha(pixelColor, alphaValue);
+                    }
+
+                    if (pixelColor == -1) {
+                        continue; // Skip if no color is set
+                    }
                     fill(pixelColor);
                     rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
                 }
             }
         }
+    }
+
+    /**
+     * Hilfsmethode zum Anpassen des Alpha-Wertes einer Farbe
+     */
+    private int adjustAlpha(int color, int alphaValue) {
+        // Wir behalten RGB bei und ersetzen nur den Alpha-Kanal
+        return (color & 0x00FFFFFF) | (alphaValue << 24);
     }
 
     // ========== USER INTERACTION ==========
