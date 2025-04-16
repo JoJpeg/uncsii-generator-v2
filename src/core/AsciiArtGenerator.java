@@ -1,4 +1,5 @@
 package core;
+
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -74,6 +75,13 @@ public class AsciiArtGenerator {
         Set<Integer> uniqueIndices = new HashSet<>();
         int[] quantizedIndices = new int[GlyphManager.PIXEL_COUNT];
 
+        // Extract average alpha from block pixels for debugging
+        int totalAlpha = 0;
+        for (int pixel : blockPixels) {
+            totalAlpha += (pixel >> 24) & 0xFF;
+        }
+        int avgAlpha = totalAlpha / blockPixels.length;
+
         // Quantize pixels to palette indices
         for (int i = 0; i < GlyphManager.PIXEL_COUNT; i++) {
             int nearestIndex = colorPalette.findNearestColorIndex(blockPixels[i]);
@@ -81,7 +89,30 @@ public class AsciiArtGenerator {
             quantizedIndices[i] = nearestIndex;
         }
 
-        // Exact match only possible with exactly 2 colors
+        // Special case: Single-color block
+        if (uniqueIndices.size() == 1) {
+            int singleIndex = uniqueIndices.iterator().next();
+            Map<Integer, Long> patterns = glyphManager.getAllPatterns();
+
+            // Try to find either a completely filled or completely empty glyph
+            for (Map.Entry<Integer, Long> entry : patterns.entrySet()) {
+                long pattern = entry.getValue();
+                boolean isAllOn = pattern == -1L; // All bits set (all pixels on)
+                boolean isAllOff = pattern == 0L; // All bits clear (all pixels off)
+
+                if (isAllOn || isAllOff) {
+                    int codePoint = entry.getKey();
+                    // For solid blocks, we'll make both FG and BG the same color
+                    return new ResultGlyph(codePoint, singleIndex, singleIndex, avgAlpha);
+                }
+            }
+
+            // If no solid pattern found, continue to normal matching process
+            // by finding a second color to use with the block
+        }
+
+        // Exact match only possible with exactly 2 colors (or one color with special
+        // handling)
         if (uniqueIndices.size() != 2) {
             return null;
         }
@@ -114,7 +145,7 @@ public class AsciiArtGenerator {
             if (matchA) {
                 int[] simulatedExactA = glyphManager.simulateBlock(currentPattern, colorA, colorB);
                 if (glyphManager.compareBlocksExactly(blockPixels, simulatedExactA)) {
-                    return new ResultGlyph(currentCodePoint, indexA, indexB);
+                    return new ResultGlyph(currentCodePoint, indexA, indexB, avgAlpha);
                 }
             }
 
@@ -132,7 +163,7 @@ public class AsciiArtGenerator {
             if (matchB) {
                 int[] simulatedExactB = glyphManager.simulateBlock(currentPattern, colorB, colorA);
                 if (glyphManager.compareBlocksExactly(blockPixels, simulatedExactB)) {
-                    return new ResultGlyph(currentCodePoint, indexB, indexA);
+                    return new ResultGlyph(currentCodePoint, indexB, indexA, avgAlpha);
                 }
             }
         }
@@ -148,6 +179,13 @@ public class AsciiArtGenerator {
         int[] dominantIndices = colorPalette.findDominantColors(blockPixels);
         int color1Index = dominantIndices[0];
         int color2Index = dominantIndices[1];
+
+        // Extract average alpha from block pixels for debugging
+        int totalAlpha = 0;
+        for (int pixel : blockPixels) {
+            totalAlpha += (pixel >> 24) & 0xFF;
+        }
+        int avgAlpha = totalAlpha / blockPixels.length;
 
         // Find best character and color combination
         int bestCodePoint = 0;
@@ -184,6 +222,7 @@ public class AsciiArtGenerator {
             }
         }
 
-        return new ResultGlyph(bestCodePoint, bestFgIndex, bestBgIndex);
+        // Return result with extracted alpha value for debugging
+        return new ResultGlyph(bestCodePoint, bestFgIndex, bestBgIndex, avgAlpha);
     }
 }

@@ -139,7 +139,6 @@ public class ProcessingCore extends PApplet {
         // Initialize display variables
         drawX = (width - drawW) / 2;
         drawY = (height - drawH) / 2;
-
         // Initialize font
         unscii = createFont(fontPath, 8, true);
         background(0);
@@ -380,7 +379,33 @@ public class ProcessingCore extends PApplet {
                 return;
             }
 
+            // Prüfen, ob Bild Alpha-Kanal hat und sicherstellen, dass Schwarze Pixel nicht
+            // transparent sind
+            boolean hasAlphaChannel = false;
             inputImage.loadPixels();
+
+            // Einfacher Test: Suche nach Pixeln mit nicht-255 Alpha
+            for (int i = 0; i < inputImage.pixels.length; i++) {
+                int alpha = (inputImage.pixels[i] >> 24) & 0xFF;
+                if (alpha != 255) {
+                    hasAlphaChannel = true;
+                    break;
+                }
+            }
+
+            Logger.println("Image loaded: " + path);
+            Logger.println("Image has alpha channel: " + (hasAlphaChannel ? "yes" : "no"));
+
+            // Wenn kein Alpha-Kanal erkannt wurde, stelle sicher, dass alle Pixel volle
+            // Deckkraft haben
+            if (!hasAlphaChannel) {
+                Logger.println("Ensuring all pixels have full opacity");
+                for (int i = 0; i < inputImage.pixels.length; i++) {
+                    // Setze Alpha auf voll opak (255)
+                    inputImage.pixels[i] = inputImage.pixels[i] | 0xFF000000;
+                }
+                inputImage.updatePixels();
+            }
 
             // Resize image to fit display area while maintaining aspect ratio
             resizeImageForDisplay();
@@ -515,10 +540,18 @@ public class ProcessingCore extends PApplet {
             for (int x = 0; x < GLYPH_WIDTH; x++) {
                 int imgX = startX + x;
                 int imgY = startY + y;
-                blockPixels[y * GLYPH_WIDTH + x] = inputImage.pixels[imgY * inputImage.width + imgX];
+                int color = inputImage.pixels[imgY * inputImage.width + imgX];
+                blockPixels[y * GLYPH_WIDTH + x] = color;
+                // float r = red(color);
+                // float g = green(color);
+                // float b = blue(color);
+                // int alpha = (color >> 24) & 0xFF;
+                // if (r == 0 && b == 0 && g == 0 && alpha > 0) {
+                // float falpha = alpha(color);
+                // // Logger.println("black with non 0 alpha :) " + falpha + " : " + alpha);
+                // }
             }
         }
-
         return blockPixels;
     }
 
@@ -526,6 +559,13 @@ public class ProcessingCore extends PApplet {
      * Find an approximate match for a block using dominant colors
      */
     private ResultGlyph findApproximateMatch(int[] blockPixels) {
+        // Extrahiere den durchschnittlichen Alpha-Wert für Debug-Zwecke
+        int totalAlpha = 0;
+        for (int pixel : blockPixels) {
+            totalAlpha += (pixel >> 24) & 0xFF;
+        }
+        int avgAlpha = totalAlpha / blockPixels.length;
+        
         // Find two dominant colors
         int[] dominantIndices = findDominantPaletteColors(blockPixels);
         int color1Index = dominantIndices[0];
@@ -562,7 +602,8 @@ public class ProcessingCore extends PApplet {
             }
         }
 
-        return new ResultGlyph(bestCodePoint, bestFgIndex, bestBgIndex);
+        // Erstelle ResultGlyph mit Alpha-Wert
+        return new ResultGlyph(bestCodePoint, bestFgIndex, bestBgIndex, avgAlpha);
     }
 
     /**
@@ -702,8 +743,16 @@ public class ProcessingCore extends PApplet {
 
     /**
      * Try to find an exact match for a block of pixels
+     * With improved support for single-color blocks and alpha channel
      */
     ResultGlyph findExactMatch(int[] blockPixels) {
+        // Extrahiere den durchschnittlichen Alpha-Wert für Debug-Zwecke
+        int totalAlpha = 0;
+        for (int pixel : blockPixels) {
+            totalAlpha += (pixel >> 24) & 0xFF;
+        }
+        int avgAlpha = totalAlpha / blockPixels.length;
+        
         Set<Integer> uniqueIndices = new HashSet<>();
         int[] quantizedIndices = new int[PIXEL_COUNT];
 
@@ -714,7 +763,32 @@ public class ProcessingCore extends PApplet {
             quantizedIndices[i] = nearestIndex;
         }
 
-        // Exact match only possible with exactly 2 colors
+        // Special case: Single-color block
+        if (uniqueIndices.size() == 1) {
+            int singleIndex = uniqueIndices.iterator().next();
+            // Find a solid block pattern (either all on or all off)
+            Long solidPattern = null;
+            
+            // Try to find either a completely filled or completely empty glyph
+            for (Map.Entry<Integer, Long> entry : asciiPatterns.entrySet()) {
+                long pattern = entry.getValue();
+                boolean isAllOn = pattern == -1L; // All bits set (all pixels on)
+                boolean isAllOff = pattern == 0L; // All bits clear (all pixels off)
+                
+                if (isAllOn || isAllOff) {
+                    solidPattern = pattern;
+                    int codePoint = entry.getKey();
+                    // For solid blocks, we'll make both FG and BG the same color
+                    // Speichere Alpha-Wert für besseres Debugging
+                    return new ResultGlyph(codePoint, singleIndex, singleIndex, avgAlpha);
+                }
+            }
+            
+            // If no solid pattern found, continue to normal matching process
+            // by finding a second color to use with the block
+        }
+
+        // Exact match only possible with exactly 2 colors (or one color with special handling)
         if (uniqueIndices.size() != 2) {
             return null;
         }
@@ -745,7 +819,8 @@ public class ProcessingCore extends PApplet {
             if (matchA) {
                 int[] simulatedExactA = simulateBlock(currentPattern, colorA, colorB);
                 if (compareBlocksExactly(blockPixels, simulatedExactA)) {
-                    return new ResultGlyph(currentCodePoint, indexA, indexB);
+                    // Alpha-Wert mit speichern
+                    return new ResultGlyph(currentCodePoint, indexA, indexB, avgAlpha);
                 }
             }
 
@@ -763,7 +838,8 @@ public class ProcessingCore extends PApplet {
             if (matchB) {
                 int[] simulatedExactB = simulateBlock(currentPattern, colorB, colorA);
                 if (compareBlocksExactly(blockPixels, simulatedExactB)) {
-                    return new ResultGlyph(currentCodePoint, indexB, indexA);
+                    // Alpha-Wert mit speichern
+                    return new ResultGlyph(currentCodePoint, indexB, indexA, avgAlpha);
                 }
             }
         }
@@ -773,34 +849,42 @@ public class ProcessingCore extends PApplet {
 
     /**
      * Find the nearest palette color index for an RGB color
-     * Now with alpha channel support
+     * Mit verbesserter Alpha-Kanal-Unterstützung und speziellem Handling für Schwarz
      */
     int findNearestPaletteIndex(int rgbColor) {
-        // Check for transparency first
+        // Extract alpha channel value
         int alpha = (rgbColor >> 24) & 0xFF;
 
-        // If pixel is significantly transparent (alpha < 128), use transparent color
-        // index
-        if (alpha < 128) {
-            return 0; // Use our reserved transparent color index
+        // Nur vollständig transparente Pixel (alpha = 0) als transparent behandeln
+        if (alpha == 0) {
+            return 0; // Index 0 ist für vollständige Transparenz reserviert
         }
 
-        float r1 = red(rgbColor);
-        float g1 = green(rgbColor);
-        float b1 = blue(rgbColor);
+        // Wenn der Pixel schwarz oder nahezu schwarz und opak ist,
+        // direkt opakes Schwarz zurückgeben (Index 1)
+        float r = red(rgbColor);
+        float g = green(rgbColor);
+        float b = blue(rgbColor);
+        if (r <= 5 && g <= 5 && b <= 5 && alpha > 200) {
+            return 1; // Index 1 ist opakes Schwarz
+        }
 
-        int bestIndex = 1; // Start from 1, since 0 is reserved for transparency
+        // Für alle anderen Pixel (einschließlich schwarzer Pixel mit Alpha > 0)
+        // finde den nächsten Farbindex in der Palette
+        int bestIndex = 1; // Starte bei 1, da 0 für Transparenz reserviert ist
         double minDistSq = Double.MAX_VALUE;
 
-        for (int i = 1; i < colorPalette.length; i++) { // Start from 1 to skip transparent index
+        // Berücksichtige alle Nicht-Transparenz-Indizes (ab Index 1)
+        for (int i = 1; i < colorPalette.length; i++) {
             int palColor = colorPalette[i];
             float r2 = red(palColor);
             float g2 = green(palColor);
             float b2 = blue(palColor);
 
-            double distSq = (r1 - r2) * (r1 - r2) +
-                    (g1 - g2) * (g1 - g2) +
-                    (b1 - b2) * (b1 - b2);
+            // Berechne die RGB-Distanz (ohne Alpha-Komponente)
+            double distSq = (r - r2) * (r - r2) +
+                    (g - g2) * (g - g2) +
+                    (b - b2) * (b - b2);
 
             if (distSq < minDistSq) {
                 minDistSq = distSq;
@@ -808,7 +892,7 @@ public class ProcessingCore extends PApplet {
             }
 
             if (minDistSq == 0) {
-                break; // Exact match found
+                break; // Exakter Match gefunden
             }
         }
 
@@ -901,7 +985,8 @@ public class ProcessingCore extends PApplet {
                 int screenX = gridOriginX + x * cellWidth;
                 int screenY = gridOriginY + y * cellHeight;
 
-                displayScaledGlyph(pattern, screenX, screenY, DISPLAY_SCALE, bgColor, fgColor);
+                // Verwende den im ResultGlyph gespeicherten Alpha-Wert
+                displayScaledGlyph(pattern, screenX, screenY, DISPLAY_SCALE, bgColor, fgColor, glyphInfo.alpha);
             }
         }
 
@@ -1007,14 +1092,14 @@ public class ProcessingCore extends PApplet {
 
     /**
      * Display a scaled glyph with the given pattern and colors
-     * Now with transparency support
+     * Now with improved transparency support using alpha values
      */
-    void displayScaledGlyph(long pattern, int screenX, int screenY, int pixelSize, int bgCol, int fgCol) {
+    void displayScaledGlyph(long pattern, int screenX, int screenY, int pixelSize, int bgCol, int fgCol,
+            int alphaValue) {
         noStroke();
 
-        // Check for transparent background - korrigierter Ausdruck mit richtiger
-        // Klammerung
-        boolean isTransparentBg = ((bgCol >> 24) & 0xFF) == 0;
+        // Determine transparency based on the stored alpha value
+        boolean isTransparentBg = bgCol == colorPalette[0] || alphaValue < 5;
 
         for (int y = 0; y < GLYPH_HEIGHT; y++) {
             for (int x = 0; x < GLYPH_WIDTH; x++) {
@@ -1024,7 +1109,16 @@ public class ProcessingCore extends PApplet {
                 // Set the fill color
                 int pixelColor = pixelOn ? fgCol : bgCol;
 
-                // Only draw pixel if it's not transparent
+                // Apply the alpha value to non-transparent pixels for debugging visibility
+                if (pixelColor != colorPalette[0]) {
+                    // Only modify the alpha if it's not already transparent
+                    int alpha = (pixelColor >> 24) & 0xFF;
+                    if (alpha > 0) {
+                        pixelColor = (pixelColor & 0x00FFFFFF) | (alphaValue << 24);
+                    }
+                }
+
+                // Only draw pixel if it's not transparent background
                 if (!isTransparentBg || pixelOn) {
                     fill(pixelColor);
                     rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);

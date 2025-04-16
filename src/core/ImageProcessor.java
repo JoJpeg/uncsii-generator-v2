@@ -1,4 +1,5 @@
 package core;
+
 import logger.Logger;
 import processing.core.PApplet;
 import processing.core.PImage;
@@ -52,6 +53,34 @@ public class ImageProcessor {
             }
 
             inputImage.loadPixels();
+
+            // Prüfen, ob das Bild einen Alpha-Kanal hat und sicherstellen, dass schwarze
+            // Pixel nicht transparent sind
+            boolean hasAlphaChannel = false;
+
+            // Einfacher Test: Suche nach Pixeln mit nicht-255 Alpha
+            for (int i = 0; i < inputImage.pixels.length; i++) {
+                int alpha = (inputImage.pixels[i] >> 24) & 0xFF;
+                if (alpha != 255) {
+                    hasAlphaChannel = true;
+                    break;
+                }
+            }
+
+            Logger.println("Image loaded: " + path);
+            Logger.println("Image has alpha channel: " + (hasAlphaChannel ? "yes" : "no"));
+
+            // Wenn kein Alpha-Kanal erkannt wurde, stelle sicher, dass alle Pixel volle
+            // Deckkraft haben
+            if (!hasAlphaChannel) {
+                Logger.println("Ensuring all pixels have full opacity");
+                for (int i = 0; i < inputImage.pixels.length; i++) {
+                    // Setze Alpha auf voll opak (255)
+                    inputImage.pixels[i] = inputImage.pixels[i] | 0xFF000000;
+                }
+                inputImage.updatePixels();
+            }
+
             imageWidth = inputImage.width;
             imageHeight = inputImage.height;
 
