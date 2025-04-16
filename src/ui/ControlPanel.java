@@ -42,6 +42,7 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JButton pasteColorsButton;
     private JButton flipColorsButton; // New Button
     private JButton centerImageButton; // Füge einen Button zum Zentrieren des Bildes hinzu
+    private JButton transparentBgButton; // Button für transparenten Hintergrund
 
     // Selection Info Labels
     private JLabel hoverXPosLabel;
@@ -355,6 +356,12 @@ public class ControlPanel extends JFrame implements ActionListener {
         flipColorsButton.addActionListener(this);
         colorCopyPastePanel.add(flipColorsButton); // Add new button to panel
 
+        transparentBgButton = new JButton("Transparent Background"); // New Button
+        transparentBgButton.setToolTipText("Set Background to Transparent");
+        transparentBgButton.setEnabled(false);
+        transparentBgButton.addActionListener(this);
+        colorCopyPastePanel.add(transparentBgButton); // Add new button to panel
+
         colorCopyPastePanel
                 .setMaximumSize(new Dimension(Integer.MAX_VALUE, copyColorsButton.getPreferredSize().height));
         selectionInfoContainer.add(colorCopyPastePanel);
@@ -399,6 +406,7 @@ public class ControlPanel extends JFrame implements ActionListener {
             copyColorsButton.setEnabled(false);
             pasteColorsButton.setEnabled(false);
             flipColorsButton.setEnabled(false); // Disable new button
+            transparentBgButton.setEnabled(false); // Disable new button
         }
     }
 
@@ -439,6 +447,8 @@ public class ControlPanel extends JFrame implements ActionListener {
                 p.flipClickedGlyphColors(); // Call the new method in ProcessingCore
             else if (source == centerImageButton) // Handle center image button click
                 p.centerImage(); // Call the method in ProcessingCore
+            else if (source == transparentBgButton) // Handle transparent background button click
+                p.setTransparentBackground(); // Call the method in ProcessingCore
 
         } catch (Exception ex) {
             Logger.println("Fehler bei Button-Aktion: " + ex.getMessage());
@@ -663,6 +673,7 @@ public class ControlPanel extends JFrame implements ActionListener {
         pasteColorsButton.setEnabled(glyphSelected && internalColorsAvailable);
         pasteCharExtButton.setEnabled(glyphSelected);
         flipColorsButton.setEnabled(glyphSelected); // Enable/disable flip button based on selection
+        transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on selection
     }
 
     /**
@@ -699,6 +710,7 @@ public class ControlPanel extends JFrame implements ActionListener {
         copyGlyphButton.setEnabled(glyphSelected);
         copyColorsButton.setEnabled(glyphSelected);
         flipColorsButton.setEnabled(glyphSelected); // Enable/disable flip button based on selection
+        transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on selection
 
         updatePasteButtonStates();
 

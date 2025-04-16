@@ -259,19 +259,23 @@ public class ProcessingCore extends PApplet {
     private void setupPalette() {
         colorPalette = new int[256];
 
-        // Standard 16 colors
+        // Reserved color index for transparency (fully transparent black)
+        // Using 0 alpha to make it fully transparent
+        colorPalette[0] = color(0, 0, 0, 0);
+
+        // Standard 16 colors (now starting at index 1)
         int[] basic16 = {
-                color(0, 0, 0), color(128, 0, 0), color(0, 128, 0), color(128, 128, 0),
+                color(128, 0, 0), color(0, 128, 0), color(128, 128, 0),
                 color(0, 0, 128), color(128, 0, 128), color(0, 128, 128), color(192, 192, 192),
                 color(128, 128, 128), color(255, 0, 0), color(0, 255, 0), color(255, 255, 0),
                 color(0, 0, 255), color(255, 0, 255), color(0, 255, 255), color(255, 255, 255)
         };
 
-        // Copy basic 16 colors
-        System.arraycopy(basic16, 0, colorPalette, 0, basic16.length);
+        // Copy basic 16 colors (starting at index 1)
+        System.arraycopy(basic16, 0, colorPalette, 1, basic16.length);
 
         // Generate the 216 color cube (6x6x6)
-        int index = 16;
+        int index = 16 + 1; // +1 to account for the reserved transparent color
         for (int r = 0; r < 6; r++) {
             for (int g = 0; g < 6; g++) {
                 for (int b = 0; b < 6; b++) {
@@ -286,12 +290,24 @@ public class ProcessingCore extends PApplet {
         // Generate the grayscale ramp (24 colors)
         for (int i = 0; i < 24; i++) {
             int value = i * 10 + 8;
-            colorPalette[index++] = color(value, value, value);
+            if (index < 256) {
+                colorPalette[index] = color(value, value, value);
+            }
+            index++;
+        }
+
+        // Add an additional semi-transparent black (80% transparency)
+        // This gives some options between fully transparent and opaque
+        if (index < 256) {
+            colorPalette[index] = color(0, 0, 0, 51); // ~20% opacity
+            index++;
         }
 
         if (colorPalette.length != 256) {
             Logger.println("WARNING: Color Palette size is not 256!");
         }
+
+        Logger.println("Palette initialized with transparency support. Index 0 = transparent.");
     }
 
     // ========== IMAGE LOADING AND PROCESSING ==========
@@ -757,16 +773,26 @@ public class ProcessingCore extends PApplet {
 
     /**
      * Find the nearest palette color index for an RGB color
+     * Now with alpha channel support
      */
     int findNearestPaletteIndex(int rgbColor) {
-        int bestIndex = 0;
-        double minDistSq = Double.MAX_VALUE;
+        // Check for transparency first
+        int alpha = (rgbColor >> 24) & 0xFF;
+
+        // If pixel is significantly transparent (alpha < 128), use transparent color
+        // index
+        if (alpha < 128) {
+            return 0; // Use our reserved transparent color index
+        }
 
         float r1 = red(rgbColor);
         float g1 = green(rgbColor);
         float b1 = blue(rgbColor);
 
-        for (int i = 0; i < colorPalette.length; i++) {
+        int bestIndex = 1; // Start from 1, since 0 is reserved for transparency
+        double minDistSq = Double.MAX_VALUE;
+
+        for (int i = 1; i < colorPalette.length; i++) { // Start from 1 to skip transparent index
             int palColor = colorPalette[i];
             float r2 = red(palColor);
             float g2 = green(palColor);
@@ -981,15 +1007,28 @@ public class ProcessingCore extends PApplet {
 
     /**
      * Display a scaled glyph with the given pattern and colors
+     * Now with transparency support
      */
     void displayScaledGlyph(long pattern, int screenX, int screenY, int pixelSize, int bgCol, int fgCol) {
         noStroke();
+
+        // Check for transparent background - korrigierter Ausdruck mit richtiger
+        // Klammerung
+        boolean isTransparentBg = ((bgCol >> 24) & 0xFF) == 0;
+
         for (int y = 0; y < GLYPH_HEIGHT; y++) {
             for (int x = 0; x < GLYPH_WIDTH; x++) {
                 int bitIndex = y * GLYPH_WIDTH + x;
                 boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
-                fill(pixelOn ? fgCol : bgCol);
-                rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
+
+                // Set the fill color
+                int pixelColor = pixelOn ? fgCol : bgCol;
+
+                // Only draw pixel if it's not transparent
+                if (!isTransparentBg || pixelOn) {
+                    fill(pixelColor);
+                    rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
+                }
             }
         }
     }
@@ -1537,6 +1576,28 @@ public class ProcessingCore extends PApplet {
                 Logger.println("No glyph selected to replace.");
             if (sourceGlyph == null)
                 Logger.println("Source glyph data is null.");
+        }
+    }
+
+    /**
+     * Setzt den Hintergrund der aktuell ausgewählten Glyphe auf transparent (Index 0)
+     * Wird vom ControlPanel aufgerufen.
+     */
+    public void setTransparentBackground() {
+        if (clickedGlyph != null && clickedGridX >= 0 && clickedGridY >= 0) {
+            // Erstelle eine neue Glyphe mit transparentem Hintergrund
+            ResultGlyph newGlyph = new ResultGlyph(
+                    clickedGlyph.codePoint,
+                    clickedGlyph.fgIndex,
+                    0);  // 0 ist der Index für Transparenz, den wir in setupPalette definiert haben
+
+            // Erstelle und führe das Command aus
+            GlyphChangeCommand cmd = new GlyphChangeCommand(this, clickedGridX, clickedGridY, newGlyph);
+            commandManager.executeCommand(cmd);
+
+            Logger.println("Hintergrund bei (" + clickedGridX + "," + clickedGridY + ") auf transparent gesetzt");
+        } else {
+            Logger.println("Keine Glyphe ausgewählt, um den Hintergrund transparent zu setzen.");
         }
     }
 
