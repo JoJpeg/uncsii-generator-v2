@@ -565,7 +565,7 @@ public class ProcessingCore extends PApplet {
             totalAlpha += (pixel >> 24) & 0xFF;
         }
         int avgAlpha = totalAlpha / blockPixels.length;
-        
+
         // Find two dominant colors
         int[] dominantIndices = findDominantPaletteColors(blockPixels);
         int color1Index = dominantIndices[0];
@@ -752,7 +752,7 @@ public class ProcessingCore extends PApplet {
             totalAlpha += (pixel >> 24) & 0xFF;
         }
         int avgAlpha = totalAlpha / blockPixels.length;
-        
+
         Set<Integer> uniqueIndices = new HashSet<>();
         int[] quantizedIndices = new int[PIXEL_COUNT];
 
@@ -768,13 +768,13 @@ public class ProcessingCore extends PApplet {
             int singleIndex = uniqueIndices.iterator().next();
             // Find a solid block pattern (either all on or all off)
             Long solidPattern = null;
-            
+
             // Try to find either a completely filled or completely empty glyph
             for (Map.Entry<Integer, Long> entry : asciiPatterns.entrySet()) {
                 long pattern = entry.getValue();
                 boolean isAllOn = pattern == -1L; // All bits set (all pixels on)
                 boolean isAllOff = pattern == 0L; // All bits clear (all pixels off)
-                
+
                 if (isAllOn || isAllOff) {
                     solidPattern = pattern;
                     int codePoint = entry.getKey();
@@ -783,12 +783,13 @@ public class ProcessingCore extends PApplet {
                     return new ResultGlyph(codePoint, singleIndex, singleIndex, avgAlpha);
                 }
             }
-            
+
             // If no solid pattern found, continue to normal matching process
             // by finding a second color to use with the block
         }
 
-        // Exact match only possible with exactly 2 colors (or one color with special handling)
+        // Exact match only possible with exactly 2 colors (or one color with special
+        // handling)
         if (uniqueIndices.size() != 2) {
             return null;
         }
@@ -849,7 +850,8 @@ public class ProcessingCore extends PApplet {
 
     /**
      * Find the nearest palette color index for an RGB color
-     * Mit verbesserter Alpha-Kanal-Unterstützung und speziellem Handling für Schwarz
+     * Mit verbesserter Alpha-Kanal-Unterstützung und speziellem Handling für
+     * Schwarz
      */
     int findNearestPaletteIndex(int rgbColor) {
         // Extract alpha channel value
