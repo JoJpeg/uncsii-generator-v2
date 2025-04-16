@@ -673,7 +673,8 @@ public class ControlPanel extends JFrame implements ActionListener {
         pasteColorsButton.setEnabled(glyphSelected && internalColorsAvailable);
         pasteCharExtButton.setEnabled(glyphSelected);
         flipColorsButton.setEnabled(glyphSelected); // Enable/disable flip button based on selection
-        transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on selection
+        transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on
+                                                       // selection
     }
 
     /**
@@ -710,7 +711,8 @@ public class ControlPanel extends JFrame implements ActionListener {
         copyGlyphButton.setEnabled(glyphSelected);
         copyColorsButton.setEnabled(glyphSelected);
         flipColorsButton.setEnabled(glyphSelected); // Enable/disable flip button based on selection
-        transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on selection
+        transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on
+                                                       // selection
 
         updatePasteButtonStates();
 

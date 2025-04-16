@@ -1580,7 +1580,8 @@ public class ProcessingCore extends PApplet {
     }
 
     /**
-     * Setzt den Hintergrund der aktuell ausgewählten Glyphe auf transparent (Index 0)
+     * Setzt den Hintergrund der aktuell ausgewählten Glyphe auf transparent (Index
+     * 0)
      * Wird vom ControlPanel aufgerufen.
      */
     public void setTransparentBackground() {
@@ -1589,7 +1590,7 @@ public class ProcessingCore extends PApplet {
             ResultGlyph newGlyph = new ResultGlyph(
                     clickedGlyph.codePoint,
                     clickedGlyph.fgIndex,
-                    0);  // 0 ist der Index für Transparenz, den wir in setupPalette definiert haben
+                    0); // 0 ist der Index für Transparenz, den wir in setupPalette definiert haben
 
             // Erstelle und führe das Command aus
             GlyphChangeCommand cmd = new GlyphChangeCommand(this, clickedGridX, clickedGridY, newGlyph);
