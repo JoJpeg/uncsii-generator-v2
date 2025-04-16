@@ -41,6 +41,7 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JButton copyColorsButton;
     private JButton pasteColorsButton;
     private JButton flipColorsButton; // New Button
+    private JButton flipGlyphButton; // Hinzufügen des Buttons
     private JButton centerImageButton; // Füge einen Button zum Zentrieren des Bildes hinzu
     private JButton transparentBgButton; // Button für transparenten Hintergrund
 
@@ -356,6 +357,12 @@ public class ControlPanel extends JFrame implements ActionListener {
         flipColorsButton.addActionListener(this);
         colorCopyPastePanel.add(flipColorsButton); // Add new button to panel
 
+        flipGlyphButton = new JButton("Flip Glyph"); // Hinzufügen des Buttons
+        flipGlyphButton.setToolTipText("Find an alternative glyph match (try to invert pattern)");
+        flipGlyphButton.setEnabled(false);
+        flipGlyphButton.addActionListener(this);
+        colorCopyPastePanel.add(flipGlyphButton); // Button zum Panel hinzufügen
+
         transparentBgButton = new JButton("Transparent Background"); // New Button
         transparentBgButton.setToolTipText("Set Background to Transparent");
         transparentBgButton.setEnabled(false);
@@ -406,6 +413,7 @@ public class ControlPanel extends JFrame implements ActionListener {
             copyColorsButton.setEnabled(false);
             pasteColorsButton.setEnabled(false);
             flipColorsButton.setEnabled(false); // Disable new button
+            flipGlyphButton.setEnabled(false); // Disable new button
             transparentBgButton.setEnabled(false); // Disable new button
         }
     }
@@ -445,6 +453,8 @@ public class ControlPanel extends JFrame implements ActionListener {
                 pasteInternalColors();
             else if (source == flipColorsButton) // Handle new button click
                 p.flipClickedGlyphColors(); // Call the new method in ProcessingCore
+            else if (source == flipGlyphButton) // Handle flip glyph button click
+                p.invertGlyphPattern(); // Call the method in ProcessingCore
             else if (source == centerImageButton) // Handle center image button click
                 p.centerImage(); // Call the method in ProcessingCore
             else if (source == transparentBgButton) // Handle transparent background button click
@@ -673,6 +683,7 @@ public class ControlPanel extends JFrame implements ActionListener {
         pasteColorsButton.setEnabled(glyphSelected && internalColorsAvailable);
         pasteCharExtButton.setEnabled(glyphSelected);
         flipColorsButton.setEnabled(glyphSelected); // Enable/disable flip button based on selection
+        flipGlyphButton.setEnabled(glyphSelected); // Enable/disable flip glyph button based on selection
         transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on
                                                        // selection
     }
@@ -711,6 +722,7 @@ public class ControlPanel extends JFrame implements ActionListener {
         copyGlyphButton.setEnabled(glyphSelected);
         copyColorsButton.setEnabled(glyphSelected);
         flipColorsButton.setEnabled(glyphSelected); // Enable/disable flip button based on selection
+        flipGlyphButton.setEnabled(glyphSelected); // Enable/disable flip glyph button based on selection
         transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on
                                                        // selection
 

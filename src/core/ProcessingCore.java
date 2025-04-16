@@ -1685,7 +1685,7 @@ public class ProcessingCore extends PApplet {
     public void redo() {
         if (commandManager.canRedo()) {
             commandManager.redo();
-            Logger.println("Aktion wiederhergestellt");
+            Logger.println("Nichts zum Wiederherstellen");
         } else {
             Logger.println("Nichts zum Wiederherstellen");
         }
@@ -1803,5 +1803,268 @@ public class ProcessingCore extends PApplet {
             Logger.println("Error starting the application: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Findet einen alternativen, oft invertierten Glyph-Match für den aktuell
+     * ausgewählten Block.
+     * Der Algorithmus versucht den am besten passenden Glyph zu finden, wobei der
+     * aktuell
+     * verwendete Glyph ausgeschlossen wird.
+     * Wird vom ControlPanel aufgerufen.
+     */
+    public void invertGlyphPattern() {
+        if (clickedGlyph == null || clickedGridX < 0 || clickedGridY < 0) {
+            Logger.println("Kein Glyph ausgewählt zum Neuvergleichen.");
+            return;
+        }
+
+        // 1. Extrahiere den Original-Pixelblock aus dem Bild
+        int[] blockPixels = extractBlockPixels(clickedGridX, clickedGridY);
+        if (blockPixels == null) {
+            Logger.println("Fehler beim Extrahieren der Pixel für die Neuberechnung.");
+            return;
+        }
+
+        // 2. Erstelle eine Liste von Codepoints, die wir ausschließen wollen (aktueller
+        // Codepoint)
+        Set<Integer> excludedCodepoints = new HashSet<>();
+        excludedCodepoints.add(clickedGlyph.codePoint);
+
+        // 3. Führe einen optimierten Match durch, unter Ausschluss des aktuellen
+        // Glyphen
+        ResultGlyph newMatch = findBestMatchExcluding(blockPixels, excludedCodepoints);
+
+        // 4. Wenn ein neuer Match gefunden wurde, wende ihn an
+        if (newMatch != null) {
+            // Erstelle und führe das Command aus
+            GlyphChangeCommand cmd = new GlyphChangeCommand(this, clickedGridX, clickedGridY, newMatch);
+            commandManager.executeCommand(cmd);
+
+            Logger.println("Alternative Glyphe bei (" + clickedGridX + "," + clickedGridY +
+                    ") gefunden: Codepoint=" + newMatch.codePoint +
+                    " (von " + clickedGlyph.codePoint + ")");
+        } else {
+            Logger.println("Keine bessere Alternative gefunden.");
+        }
+    }
+
+    /**
+     * Findet den besten Glyph-Match für einen Block, unter Ausschluss bestimmter
+     * Codepoints.
+     * 
+     * @param blockPixels        Die Pixel des zu matchenden Blocks
+     * @param excludedCodepoints Eine Menge von Codepoints, die ausgeschlossen
+     *                           werden sollen
+     * @return Der beste gefundene Match als ResultGlyph, oder null wenn keiner
+     *         gefunden wurde
+     */
+    private ResultGlyph findBestMatchExcluding(int[] blockPixels, Set<Integer> excludedCodepoints) {
+        // 1. Versuche zuerst einen exakten Match zu finden
+        ResultGlyph exactMatch = findExactMatchExcluding(blockPixels, excludedCodepoints);
+        if (exactMatch != null) {
+            return exactMatch;
+        }
+
+        // 2. Sonst finde eine Approximation
+        return findApproximateMatchExcluding(blockPixels, excludedCodepoints);
+    }
+
+    /**
+     * Findet einen exakten Match für einen Block unter Ausschluss bestimmter
+     * Codepoints.
+     * Diese Methode ist eine Kopie von findExactMatch, aber mit Ausschluss-Logik.
+     */
+    private ResultGlyph findExactMatchExcluding(int[] blockPixels, Set<Integer> excludedCodepoints) {
+        Set<Integer> uniqueIndices = new HashSet<>();
+        int[] quantizedIndices = new int[PIXEL_COUNT];
+
+        // Quantize pixels to palette indices
+        for (int i = 0; i < PIXEL_COUNT; i++) {
+            int nearestIndex = findNearestPaletteIndex(blockPixels[i]);
+            uniqueIndices.add(nearestIndex);
+            quantizedIndices[i] = nearestIndex;
+        }
+
+        // Exact match only possible with exactly 2 colors
+        if (uniqueIndices.size() != 2) {
+            return null;
+        }
+
+        // Get the two unique colors
+        Integer[] indices = uniqueIndices.toArray(new Integer[0]);
+        int indexA = indices[0];
+        int indexB = indices[1];
+        int colorA = colorPalette[indexA];
+        int colorB = colorPalette[indexB];
+
+        // Beste Übereinstimmung und Fehler speichern
+        int bestCodePoint = -1;
+        boolean bestIsCombinationA = true;
+        double bestError = Double.MAX_VALUE;
+
+        // Try each glyph pattern
+        for (Map.Entry<Integer, Long> entry : asciiPatterns.entrySet()) {
+            int currentCodePoint = entry.getKey();
+
+            // Überspringen, wenn dieser Codepoint ausgeschlossen werden soll
+            if (excludedCodepoints.contains(currentCodePoint)) {
+                continue;
+            }
+
+            long currentPattern = entry.getValue();
+
+            // Try color combination A
+            boolean matchA = true;
+            for (int i = 0; i < PIXEL_COUNT; i++) {
+                boolean pixelOn = ((currentPattern >> i) & 1L) == 1L;
+                int simulatedQuantizedIndex = pixelOn ? indexA : indexB;
+                if (simulatedQuantizedIndex != quantizedIndices[i]) {
+                    matchA = false;
+                    break;
+                }
+            }
+
+            double errorA = Double.MAX_VALUE;
+            if (matchA) {
+                int[] simulatedExactA = simulateBlock(currentPattern, colorA, colorB);
+                // Berechne den exakten Fehler für eine genauere Sortierung
+                errorA = calculateColorDistance(blockPixels, simulatedExactA);
+
+                // Ist dies der beste Match bisher?
+                if (errorA < bestError) {
+                    bestError = errorA;
+                    bestCodePoint = currentCodePoint;
+                    bestIsCombinationA = true;
+                }
+            }
+
+            // Try color combination B
+            boolean matchB = true;
+            for (int i = 0; i < PIXEL_COUNT; i++) {
+                boolean pixelOn = ((currentPattern >> i) & 1L) == 1L;
+                int simulatedQuantizedIndex = pixelOn ? indexB : indexA;
+                if (simulatedQuantizedIndex != quantizedIndices[i]) {
+                    matchB = false;
+                    break;
+                }
+            }
+
+            double errorB = Double.MAX_VALUE;
+            if (matchB) {
+                int[] simulatedExactB = simulateBlock(currentPattern, colorB, colorA);
+                // Berechne den exakten Fehler für eine genauere Sortierung
+                errorB = calculateColorDistance(blockPixels, simulatedExactB);
+
+                // Ist dies der beste Match bisher?
+                if (errorB < bestError) {
+                    bestError = errorB;
+                    bestCodePoint = currentCodePoint;
+                    bestIsCombinationA = false;
+                }
+            }
+        }
+
+        // Wenn wir einen Match gefunden haben, erstelle einen ResultGlyph
+        if (bestCodePoint != -1) {
+            return bestIsCombinationA
+                    ? new ResultGlyph(bestCodePoint, indexA, indexB)
+                    : new ResultGlyph(bestCodePoint, indexB, indexA);
+        }
+
+        return null; // No exact match found
+    }
+
+    /**
+     * Findet einen ungefähren Match für einen Block unter Ausschluss bestimmter
+     * Codepoints.
+     * Diese Methode ist eine modifizierte Version von findApproximateMatch.
+     */
+    private ResultGlyph findApproximateMatchExcluding(int[] blockPixels, Set<Integer> excludedCodepoints) {
+        // Find two dominant colors
+        int[] dominantIndices = findDominantPaletteColors(blockPixels);
+        int color1Index = dominantIndices[0];
+        int color2Index = dominantIndices[1];
+
+        // Find best character and color combination
+        int bestCodePoint = 0;
+        int bestFgIndex = color1Index;
+        int bestBgIndex = color2Index;
+        double minError = Double.MAX_VALUE;
+
+        // Iterate through all glyph patterns
+        for (Map.Entry<Integer, Long> entry : asciiPatterns.entrySet()) {
+            int currentCodePoint = entry.getKey();
+
+            // Überspringe ausgeschlossene Codepoints
+            if (excludedCodepoints.contains(currentCodePoint)) {
+                continue;
+            }
+
+            long currentPattern = entry.getValue();
+
+            // Calculate error for both color assignments
+            double errorA = calculateMatchError(currentPattern, color1Index, color2Index, blockPixels);
+            double errorB = calculateMatchError(currentPattern, color2Index, color1Index, blockPixels);
+
+            // Update best match
+            if (errorA < minError) {
+                minError = errorA;
+                bestCodePoint = currentCodePoint;
+                bestFgIndex = color1Index;
+                bestBgIndex = color2Index;
+            }
+
+            if (errorB < minError) {
+                minError = errorB;
+                bestCodePoint = currentCodePoint;
+                bestFgIndex = color2Index;
+                bestBgIndex = color1Index;
+            }
+        }
+
+        // Wenn kein Match gefunden wurde (alle Codepoints ausgeschlossen), gib null
+        // zurück
+        if (excludedCodepoints.contains(bestCodePoint)) {
+            return null;
+        }
+
+        return new ResultGlyph(bestCodePoint, bestFgIndex, bestBgIndex);
+    }
+
+    /**
+     * Berechnet den genauen Farbabstand zwischen zwei Pixelblöcken
+     * 
+     * @param blockA Der erste Pixelblock
+     * @param blockB Der zweite Pixelblock
+     * @return Die Summe der quadrierten Farbdifferenzen
+     */
+    private double calculateColorDistance(int[] blockA, int[] blockB) {
+        if (blockA.length != blockB.length) {
+            return Double.MAX_VALUE;
+        }
+
+        double totalError = 0;
+
+        for (int i = 0; i < blockA.length; i++) {
+            int colorA = blockA[i];
+            int colorB = blockB[i];
+
+            // Extrahiere die RGB-Komponenten
+            float r1 = red(colorA);
+            float g1 = green(colorA);
+            float b1 = blue(colorA);
+
+            float r2 = red(colorB);
+            float g2 = green(colorB);
+            float b2 = blue(colorB);
+
+            // Berechne die quadrierte Distanz
+            totalError += (r1 - r2) * (r1 - r2) +
+                    (g1 - g2) * (g1 - g2) +
+                    (b1 - b2) * (b1 - b2);
+        }
+
+        return totalError;
     }
 }
