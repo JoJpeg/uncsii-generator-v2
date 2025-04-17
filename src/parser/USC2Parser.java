@@ -60,6 +60,9 @@ public class USC2Parser {
                 }
 
                 switch (currentState) {
+                    case ERROR:
+                        Logger.println("ERROR: Parser is in ERROR state, skipping line: " + line);
+                        break;
                     case READING_HEADER:
                         if (line.startsWith("WIDTH=")) {
                             width = Integer.parseInt(line.substring("WIDTH=".length()));
@@ -159,8 +162,8 @@ public class USC2Parser {
                                     break; // Innere Schleife abbrechen
                                 }
 
-                                tc.setFgColor( Color.Indexed(fgIndex));
-                                tc.setBgColor( Color.Indexed(bgIndex));
+                                tc.setFgColor(Color.Indexed(fgIndex));
+                                tc.setBgColor(Color.Indexed(bgIndex));
 
                             } catch (NumberFormatException e) {
                                 Logger.println("ERROR: Invalid number format in color data row " + colorLinesRead

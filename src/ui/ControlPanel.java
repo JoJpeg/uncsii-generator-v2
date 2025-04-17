@@ -1,12 +1,15 @@
 package ui;
 
-import javax.swing.*;
-
-import core.ProcessingCore;
-import core.ResultGlyph;
-import logger.Logger;
-
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.GridLayout;
+import java.awt.TextArea;
+import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
@@ -14,6 +17,22 @@ import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Map;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+
+import core.ProcessingCore;
+import core.ResultGlyph;
+import logger.Logger;
 
 /**
  * Ein Swing-Kontrollfenster, das Buttons für die Tastaturkürzel aus
@@ -60,9 +79,7 @@ public class ControlPanel extends JFrame implements ActionListener {
 
     // Selection Area Labels
     private JLabel selectionXPosLabel;
-    private JLabel selectionYPosLabel;
     private JLabel selectionWidthLabel;
-    private JLabel selectionHeightLabel;
 
     private GlyphPreviewPanel glyphPreviewPanel; // Panel to display the clicked glyph
     private ResultGlyph currentClickedGlyph; // Store the currently clicked glyph
@@ -301,8 +318,6 @@ public class ControlPanel extends JFrame implements ActionListener {
         selectionAreaPanel.add(selectionWidthLabel);
 
         // Remove the unused labels that were previously used for separate values
-        selectionYPosLabel = null;
-        selectionHeightLabel = null;
 
         selectionInfoContainer.add(selectionAreaPanel);
         selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer

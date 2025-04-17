@@ -1,7 +1,6 @@
 package core;
 
 import java.io.File;
-import java.io.PrintWriter;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -767,7 +766,6 @@ public class ProcessingCore extends PApplet {
         if (uniqueIndices.size() == 1) {
             int singleIndex = uniqueIndices.iterator().next();
             // Find a solid block pattern (either all on or all off)
-            Long solidPattern = null;
 
             // Try to find either a completely filled or completely empty glyph
             for (Map.Entry<Integer, Long> entry : asciiPatterns.entrySet()) {
@@ -776,7 +774,6 @@ public class ProcessingCore extends PApplet {
                 boolean isAllOff = pattern == 0L; // All bits clear (all pixels off)
 
                 if (isAllOn || isAllOff) {
-                    solidPattern = pattern;
                     int codePoint = entry.getKey();
                     // For solid blocks, we'll make both FG and BG the same color
                     // Speichere Alpha-Wert für besseres Debugging
@@ -1192,10 +1189,7 @@ public class ProcessingCore extends PApplet {
                 isSelecting = true;
                 // Speichere den alten Zustand, bevor wir ihn ändern
                 boolean oldHasSelection = hasSelection;
-                int oldStartX = selectionStartX;
-                int oldStartY = selectionStartY;
-                int oldEndX = selectionEndX;
-                int oldEndY = selectionEndY;
+
 
                 hasSelection = false; // Clear previous final selection
                 selectionStartX = gridClickX;
@@ -1223,10 +1217,6 @@ public class ProcessingCore extends PApplet {
 
                 // Wenn eine Selektion aktiv war, speichere sie für Undo
                 if (hasSelection) {
-                    int oldStartX = selectionStartX;
-                    int oldStartY = selectionStartY;
-                    int oldEndX = selectionEndX;
-                    int oldEndY = selectionEndY;
 
                     // Erstelle ein SelectionCommand, um das Aufheben der Selektion rückgängig
                     // machen zu können
@@ -1250,10 +1240,6 @@ public class ProcessingCore extends PApplet {
 
             // Wenn eine Selektion aktiv war, speichere sie für Undo
             if (hasSelection) {
-                int oldStartX = selectionStartX;
-                int oldStartY = selectionStartY;
-                int oldEndX = selectionEndX;
-                int oldEndY = selectionEndY;
 
                 // Erstelle ein SelectionCommand, um das Aufheben der Selektion rückgängig
                 // machen zu können
@@ -1336,7 +1322,7 @@ public class ProcessingCore extends PApplet {
                     selectionEndY = selectionStartY;
 
                 // Check if the selection is just a single cell (no actual drag)
-                if (selectionStartX == selectionStartX && selectionStartY == selectionEndY && !startedDragging) {
+                if ( selectionStartY == selectionEndY && !startedDragging) {
                     // Es war nur ein Klick, keine richtige Selektion
                     selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
                     hasSelection = false;
@@ -1465,7 +1451,7 @@ public class ProcessingCore extends PApplet {
         // Use isMetaDown for macOS Cmd key, isControlDown otherwise
         boolean primaryModifier = (System.getProperty("os.name").toLowerCase().contains("mac")) ? isMeta : isCtrl;
 
-        boolean handled = false; // Flag to check if we handled the shortcut
+        // boolean handled = false; // Flag to check if we handled the shortcut
 
         // --- Handle Modifier Shortcuts ---
         if (primaryModifier && !isAlt) { // Cmd/Ctrl pressed (without Alt)
@@ -1475,43 +1461,43 @@ public class ProcessingCore extends PApplet {
                 // Cmd/Ctrl + Z -> Undo
                 Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Z detected.");
                 undo();
-                handled = true;
+                // handled = true;
             } else if (lowerKeyChar == 'y' || (lowerKeyChar == 'z' && isShift)) {
                 // Cmd/Ctrl + Y or Cmd/Ctrl + Shift + Z -> Redo
                 Logger.println("ProcessingCore: Shortcut " +
                         (lowerKeyChar == 'y' ? "Cmd/Ctrl+Y" : "Cmd/Ctrl+Shift+Z") + " detected.");
                 redo();
-                handled = true;
+                // handled = true;
             } else if (lowerKeyChar == 'c') {
                 if (isShift) {
                     // Cmd/Ctrl + Shift + C -> Copy Colors
                     Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Shift+C detected.");
                     controlPanel.copyInternalColors();
-                    handled = true;
+                    // handled = true;
                 } else {
                     // Cmd/Ctrl + C -> Copy Glyph (Internal + External Char)
                     Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+C detected.");
                     controlPanel.copyInternalGlyphAndExternalChar();
-                    handled = true;
+                    // handled = true;
                 }
             } else if (lowerKeyChar == 'v') {
                 if (isShift) {
                     // Cmd/Ctrl + Shift + V -> Paste Colors
                     Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Shift+V detected.");
                     controlPanel.pasteInternalColors();
-                    handled = true;
+                    // handled = true;
                 } else {
                     // Cmd/Ctrl + V -> Paste Char (External)
                     Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+V detected.");
                     controlPanel.pasteCharacterFromClipboard();
-                    handled = true;
+                    // handled = true;
                 }
             } else if (lowerKeyChar == 'f') {
                 if (!isShift) {
                     // Cmd/Ctrl + F -> Flip Colors
                     Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+F detected.");
                     flipClickedGlyphColors();
-                    handled = true;
+                    // handled = true;
                 }
             }
         } else if (primaryModifier && isAlt && !isShift) { // Cmd/Ctrl + Alt pressed (without Shift)
@@ -1520,7 +1506,7 @@ public class ProcessingCore extends PApplet {
                 // Cmd/Ctrl + Alt + V -> Paste Glyph (Internal)
                 Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Alt+V detected.");
                 controlPanel.pasteInternalGlyph();
-                handled = true;
+                // handled = true;
             }
         }
     }

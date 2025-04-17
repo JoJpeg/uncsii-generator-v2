@@ -3,7 +3,6 @@ import processing.core.PApplet;
 import processing.core.PImage;
 import ui.ControlPanel;
 
-import java.util.Map;
 
 import logger.Logger;
 
