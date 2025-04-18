@@ -19,8 +19,10 @@ public class USC2Parser {
         ERROR
     }
 
-    private static TerminalImage loadTerminalImage(String path) {
-
+    private static TerminalImage loadUnsciiImage(String path) {
+        if (path.charAt(0) == '/') {
+            path = path.substring(1);
+        }
         // 1. Resource Path holen
         String resourcePath = new File(path).getAbsolutePath();
 
@@ -60,9 +62,6 @@ public class USC2Parser {
                 }
 
                 switch (currentState) {
-                    case ERROR:
-                        Logger.println("ERROR: Parser is in ERROR state, skipping line: " + line);
-                        break;
                     case READING_HEADER:
                         if (line.startsWith("WIDTH=")) {
                             width = Integer.parseInt(line.substring("WIDTH=".length()));
@@ -80,8 +79,8 @@ public class USC2Parser {
                             terminalImage = new TerminalImage(width, height);
                             terminalImage.setPath(resourcePath); // Pfad im Objekt speichern
                             currentState = ParserState.READING_CHARS; // Zustand wechseln
-                            Logger.println("DEBUG: Header parsed. Width=" + width + ", Height=" + height
-                                    + ". Reading CHARS...");
+                            // Logger.println("DEBUG: Header parsed. Width=" + width + ", Height=" + height
+                            // + ". Reading CHARS...");
                         }
                         // Ignoriere andere Header-Zeilen (TYPE, COLORS, DATA_FORMAT)
                         break;
@@ -92,7 +91,7 @@ public class USC2Parser {
                             // sein
                             if (line.equalsIgnoreCase("COLORS")) {
                                 currentState = ParserState.READING_COLORS;
-                                Logger.println("DEBUG: Finished reading CHARS. Reading COLORS...");
+                                // Logger.println("DEBUG: Finished reading CHARS. Reading COLORS...");
                             } else {
                                 continue;
                             }
@@ -162,8 +161,17 @@ public class USC2Parser {
                                     break; // Innere Schleife abbrechen
                                 }
 
-                                tc.setFgColor(Color.Indexed(fgIndex));
-                                tc.setBgColor(Color.Indexed(bgIndex));
+                                // TODO: tc.setFgColor(new Color.Indexed(fgIndex));
+                                // rewrite to fit generic use
+
+                                if (bgIndex == 0) {
+                                    // TODO: tc.setHasNoBgColor();
+                                    // rewrite to fit generic use
+                                } else {
+                                    // TODO: tc.setBgColor(new TextColor.Indexed(bgIndex));
+                                    // rewrite to fit generic use
+
+                                }
 
                             } catch (NumberFormatException e) {
                                 Logger.println("ERROR: Invalid number format in color data row " + colorLinesRead
@@ -181,7 +189,8 @@ public class USC2Parser {
                         // ***** NEU: Prüfen, ob wir fertig sind *nach* dem Inkrementieren *****
                         if (colorLinesRead == height) {
                             currentState = ParserState.FINISHED; // Erfolgreich alle Farbzeilen gelesen
-                            Logger.println("DEBUG: Finished reading COLORS. State set to FINISHED.");
+                            // Logger.printlnDev("DEBUG: Finished reading COLORS. State set to FINISHED.",
+                            // debug);
                             // Kein 'break' hier, die Schleife wird beim nächsten Durchlauf ohnehin beendet
                             // (oder liest extra Zeilen im FINISHED State)
                         }
@@ -263,8 +272,7 @@ public class USC2Parser {
         }
 
         // 4. Erfolgreich geparstes Bild zurückgeben
-        Logger.println(
-                "Successfully loaded TerminalImage (V3): " + path + " (Width: " + width + ", Height: " + height + ")");
+        Logger.println("Image loading succeeded: " + path + " (Width: " + width + ", Height: " + height + ")");
         return terminalImage;
     }
 

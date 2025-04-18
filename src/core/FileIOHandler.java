@@ -1,4 +1,5 @@
 package core;
+
 import java.io.File;
 import java.io.PrintWriter;
 
@@ -97,11 +98,11 @@ public class FileIOHandler {
 
         Logger.println("Saving result to " + filePath + " ...");
         try (PrintWriter writer = app.createWriter(filePath)) {
-            writer.println("TYPE=USCII_ART_V2_CODEPOINT");
+            writer.println("TYPE=USCII_ART_V3_ALPHA");
             writer.println("WIDTH=" + result.getWidth());
             writer.println("HEIGHT=" + result.getHeight());
             writer.println("COLORS=xterm256");
-            writer.println("DATA_FORMAT=CODEPOINT FG_INDEX BG_INDEX");
+            writer.println("DATA_FORMAT=CODEPOINT FG_INDEX BG_INDEX ALPHA");
             writer.println("DATA");
 
             // Write character data
@@ -111,7 +112,8 @@ public class FileIOHandler {
                     ResultGlyph g = result.get(x, y);
                     line.append(g.codePoint).append(" ")
                             .append(g.fgIndex).append(" ")
-                            .append(g.bgIndex);
+                            .append(g.bgIndex).append(" ")
+                            .append(g.alpha < 127 ? -1 : g.alpha); // -1 bedeutet transparent (Alpha < 127)
 
                     if (x < result.getWidth() - 1) {
                         line.append(" ");
