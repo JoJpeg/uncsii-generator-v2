@@ -16,7 +16,7 @@ _All media is taken from my personal project [Xorm](https://www.instagram.com/xo
 
 ## Features
 
-*   **Image Loading:** Load various image formats (JPG, PNG, GIF, BMP).
+*   **Image Loading:** Load various image formats (JPG, PNG, GIF, BMP). Supports Alpha (v2.11)
 *   **UNSCII Conversion:** Convert images into a grid of characters based on the [unscii](https://github.com/viznut/unscii) 8x8 font patterns.
 *   **Color Matching:**
     *   Uses the standard xterm-256 color palette.
