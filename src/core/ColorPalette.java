@@ -13,7 +13,7 @@ public class ColorPalette {
 
     public ColorPalette(PApplet app) {
         this.p = app;
-        this.colors = new int[PALETTE_SIZE];
+        colors = new int[PALETTE_SIZE];
         setupXterm256Palette();
     }
 
@@ -70,50 +70,7 @@ public class ColorPalette {
         Logger.println("Palette initialisiert mit Standard Xterm-256 Farbwerten");
     }
 
-    /**
-     * Find the nearest palette color index for an RGB color
-     * Properly handles RGB distance without mixing alpha concerns
-     */
-    public int findNearestColorIndexOld(int rgbColor) {
-        // Wir berücksichtigen nur die RGB-Komponenten, nicht Alpha
-        float r1 = p.red(rgbColor);
-        float g1 = p.green(rgbColor);
-        float b1 = p.blue(rgbColor);
-
-        // // Spezialfall für schwarze Pixel (für bessere Kompatibilität)
-        // if (r1 <= 5 && g1 <= 5 && b1 <= 5) {
-        // return 0; // Schwarzer Index in xterm
-        // }
-
-        int bestIndex = 0;
-        double minDistSq = Double.MAX_VALUE;
-
-        // Durchsuche die gesamte Palette (0-255)
-        for (int i = 0; i < colors.length; i++) {
-            int palColor = colors[i];
-            float r2 = p.red(palColor);
-            float g2 = p.green(palColor);
-            float b2 = p.blue(palColor);
-
-            // Berechne die RGB-Distanz (ohne Alpha-Komponente)
-            double distSq = (r1 - r2) * (r1 - r2) +
-                    (g1 - g2) * (g1 - g2) +
-                    (b1 - b2) * (b1 - b2);
-
-            if (distSq < minDistSq) {
-                minDistSq = distSq;
-                bestIndex = i;
-            }
-
-            if (minDistSq == 0) {
-                break; // Exakter Match gefunden
-            }
-        }
-
-        return bestIndex;
-    }
-
-    public int findNearestColorIndex(int rgbColor) {
+    public static int findNearestColorIndex(int rgbColor, PApplet p) {
         int bestIndex = 0;
         double minDistSq = Double.MAX_VALUE;
 
@@ -145,11 +102,47 @@ public class ColorPalette {
     }
 
     /**
+     * Berechnet den genauen Farbabstand zwischen zwei Pixelblöcken
+     * 
+     * @param blockA Der erste Pixelblock
+     * @param blockB Der zweite Pixelblock
+     * @return Die Summe der quadrierten Farbdifferenzen
+     */
+    public static double calculateColorDistance(int[] blockA, int[] blockB, PApplet p) {
+        if (blockA.length != blockB.length) {
+            return Double.MAX_VALUE;
+        }
+
+        double totalError = 0;
+
+        for (int i = 0; i < blockA.length; i++) {
+            int colorA = blockA[i];
+            int colorB = blockB[i];
+
+            // Extrahiere die RGB-Komponenten
+            float r1 = p.red(colorA);
+            float g1 = p.green(colorA);
+            float b1 = p.blue(colorA);
+
+            float r2 = p.red(colorB);
+            float g2 = p.green(colorB);
+            float b2 = p.blue(colorB);
+
+            // Berechne die quadrierte Distanz
+            totalError += (r1 - r2) * (r1 - r2) +
+                    (g1 - g2) * (g1 - g2) +
+                    (b1 - b2) * (b1 - b2);
+        }
+
+        return totalError;
+    }
+
+    /**
      * Find the two most dominant palette colors in a block of pixels
      * With proper alpha handling - returns correct colors regardless of
      * transparency
      */
-    public int[] findDominantColors(int[] blockPixels) {
+    public static int[] findDominantColors(int[] blockPixels, PApplet p) {
         int[] counts = new int[PALETTE_SIZE];
         int totalPixels = 0;
 
@@ -158,7 +151,7 @@ public class ColorPalette {
             int alpha = (pixel >> 24) & 0xFF;
 
             if (alpha > 0) { // Nur nicht vollständig transparente Pixel berücksichtigen
-                int nearestIndex = findNearestColorIndex(pixel);
+                int nearestIndex = findNearestColorIndex(pixel, p);
                 counts[nearestIndex]++;
                 totalPixels++;
             }
@@ -201,6 +194,112 @@ public class ColorPalette {
 
         return new int[] { bestIndex1, bestIndex2 };
     }
+
+    /**
+     * Find the two most dominant palette colors in a block of pixels
+     */
+    public static int[] findDominantPaletteColors(int[] blockPixels, PApplet p, int PIXEL_COUNT) {
+        int[] counts = new int[256];
+
+        // Count occurrences of each palette color
+        for (int i = 0; i < PIXEL_COUNT; i++) {
+            int nearestIndex = ColorPalette.findNearestPaletteIndex(blockPixels[i], p);
+            counts[nearestIndex]++;
+        }
+
+        // Find the two most frequent colors
+        int bestIndex1 = -1, bestIndex2 = -1;
+        int maxCount1 = -1, maxCount2 = -1;
+
+        for (int i = 0; i < 256; i++) {
+            if (counts[i] > maxCount1) {
+                maxCount2 = maxCount1;
+                bestIndex2 = bestIndex1;
+                maxCount1 = counts[i];
+                bestIndex1 = i;
+            } else if (counts[i] > maxCount2) {
+                maxCount2 = counts[i];
+                bestIndex2 = i;
+            }
+        }
+
+        // Handle edge cases
+        if (bestIndex1 == -1) {
+            bestIndex1 = 0;
+        }
+
+        if (bestIndex2 == -1 || bestIndex2 == bestIndex1) {
+            bestIndex2 = (bestIndex1 == 0) ? 15 : 0; // Default to white or black
+
+            // Try to find a third color if the first two are the same
+            int thirdMaxCount = -1;
+            int thirdBestIndex = -1;
+            for (int i = 0; i < 256; i++) {
+                if (i != bestIndex1 && counts[i] > thirdMaxCount) {
+                    thirdMaxCount = counts[i];
+                    thirdBestIndex = i;
+                }
+            }
+
+            if (thirdBestIndex != -1) {
+                bestIndex2 = thirdBestIndex;
+            }
+        }
+
+        return new int[] { bestIndex1, bestIndex2 };
+    }
+
+    /**
+     * Find the nearest palette color index for an RGB color
+     * Mit xterm-256 kompatibler Farbbehandlung
+     */
+    static int findNearestPaletteIndex(int rgbColor, PApplet p) {
+        // Extract alpha channel value
+        int alpha = (rgbColor >> 24) & 0xFF;
+
+        // Vollständig transparente Pixel als Schwarz behandeln (xterm Index 0)
+        if (alpha == 0) {
+            return 0; // In xterm ist 0 Schwarz
+        }
+
+        // Wenn der Pixel schwarz oder nahezu schwarz und opak ist,
+        // direkt opakes Schwarz zurückgeben (Index 0)
+        float r = p.red(rgbColor);
+        float g = p.green(rgbColor);
+        float b = p.blue(rgbColor);
+        if (r <= 5 && g <= 5 && b <= 5 && alpha > 200) {
+            return 0; // In xterm ist 0 Schwarz
+        }
+
+        // Für alle anderen Pixel den nächsten Farbindex in der Palette finden
+        int bestIndex = 0;
+        double minDistSq = Double.MAX_VALUE;
+
+        // Die xterm Palette durchsuchen (alle Indizes)
+        for (int i = 0; i < colors.length; i++) {
+            int palColor = colors[i];
+            float r2 = p.red(palColor);
+            float g2 = p.green(palColor);
+            float b2 = p.blue(palColor);
+
+            // Berechne die RGB-Distanz (ohne Alpha-Komponente)
+            double distSq = (r - r2) * (r - r2) +
+                    (g - g2) * (g - g2) +
+                    (b - b2) * (b - b2);
+
+            if (distSq < minDistSq) {
+                minDistSq = distSq;
+                bestIndex = i;
+            }
+
+            if (minDistSq == 0) {
+                break; // Exakter Match gefunden
+            }
+        }
+
+        return bestIndex;
+    }
+
 
     /**
      * Get the RGB color value for a palette index

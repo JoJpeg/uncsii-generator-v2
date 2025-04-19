@@ -1,5 +1,6 @@
 package core;
 
+import java.awt.Color;
 import java.io.File;
 import java.util.HashSet;
 import java.util.Map;
@@ -250,66 +251,6 @@ public class ProcessingCore extends PApplet {
         Logger.println("Press 'p' to save the result to 'output.usc' file.");
         Logger.println("Press '1'-'8' to change display scale.");
     }
-
-    // /**
-    // * Setup the xterm-256 color palette
-    // */
-    // private void setupPalette() {
-    // colorPalette = new int[256];
-
-    // // Reserved color index for transparency (fully transparent black)
-    // // Using 0 alpha to make it fully transparent
-    // colorPalette[0] = color(0, 0, 0, 0);
-
-    // // Standard 16 colors (now starting at index 1)
-    // int[] basic16 = {
-    // color(128, 0, 0), color(0, 128, 0), color(128, 128, 0),
-    // color(0, 0, 128), color(128, 0, 128), color(0, 128, 128), color(192, 192,
-    // 192),
-    // color(128, 128, 128), color(255, 0, 0), color(0, 255, 0), color(255, 255, 0),
-    // color(0, 0, 255), color(255, 0, 255), color(0, 255, 255), color(255, 255,
-    // 255)
-    // };
-
-    // // Copy basic 16 colors (starting at index 1)
-    // System.arraycopy(basic16, 0, colorPalette, 1, basic16.length);
-
-    // // Generate the 216 color cube (6x6x6)
-    // int index = 16 + 1; // +1 to account for the reserved transparent color
-    // for (int r = 0; r < 6; r++) {
-    // for (int g = 0; g < 6; g++) {
-    // for (int b = 0; b < 6; b++) {
-    // int red = r > 0 ? (r * 40 + 55) : 0;
-    // int green = g > 0 ? (g * 40 + 55) : 0;
-    // int blue = b > 0 ? (b * 40 + 55) : 0;
-    // colorPalette[index++] = color(red, green, blue);
-    // }
-    // }
-    // }
-
-    // // Generate the grayscale ramp (24 colors)
-    // for (int i = 0; i < 24; i++) {
-    // int value = i * 10 + 8;
-    // if (index < 256) {
-    // colorPalette[index] = color(value, value, value);
-    // }
-    // index++;
-    // }
-
-    // // Add an additional semi-transparent black (80% transparency)
-    // // This gives some options between fully transparent and opaque
-    // if (index < 256) {
-    // colorPalette[index] = color(0, 0, 0, 51); // ~20% opacity
-    // index++;
-    // }
-
-    // if (colorPalette.length != 256) {
-    // Logger.println("WARNING: Color Palette size is not 256!");
-    // }
-
-    // Logger.println("Palette initialized with transparency support. Index 0 =
-    // transparent.");
-    // }
 
     // ========== IMAGE LOADING AND PROCESSING ==========
 
@@ -569,7 +510,7 @@ public class ProcessingCore extends PApplet {
         int avgAlpha = totalAlpha / blockPixels.length;
 
         // Find two dominant colors
-        int[] dominantIndices = findDominantPaletteColors(blockPixels);
+        int[] dominantIndices = ColorPalette.findDominantPaletteColors(blockPixels, this, PIXEL_COUNT);
         int color1Index = dominantIndices[0];
         int color2Index = dominantIndices[1];
 
@@ -623,60 +564,6 @@ public class ProcessingCore extends PApplet {
                 Logger.println("Processed row " + (gridY + 1) + "/" + gridHeight);
             }
         }
-    }
-
-    /**
-     * Find the two most dominant palette colors in a block of pixels
-     */
-    int[] findDominantPaletteColors(int[] blockPixels) {
-        int[] counts = new int[256];
-
-        // Count occurrences of each palette color
-        for (int i = 0; i < PIXEL_COUNT; i++) {
-            int nearestIndex = findNearestPaletteIndex(blockPixels[i]);
-            counts[nearestIndex]++;
-        }
-
-        // Find the two most frequent colors
-        int bestIndex1 = -1, bestIndex2 = -1;
-        int maxCount1 = -1, maxCount2 = -1;
-
-        for (int i = 0; i < 256; i++) {
-            if (counts[i] > maxCount1) {
-                maxCount2 = maxCount1;
-                bestIndex2 = bestIndex1;
-                maxCount1 = counts[i];
-                bestIndex1 = i;
-            } else if (counts[i] > maxCount2) {
-                maxCount2 = counts[i];
-                bestIndex2 = i;
-            }
-        }
-
-        // Handle edge cases
-        if (bestIndex1 == -1) {
-            bestIndex1 = 0;
-        }
-
-        if (bestIndex2 == -1 || bestIndex2 == bestIndex1) {
-            bestIndex2 = (bestIndex1 == 0) ? 15 : 0; // Default to white or black
-
-            // Try to find a third color if the first two are the same
-            int thirdMaxCount = -1;
-            int thirdBestIndex = -1;
-            for (int i = 0; i < 256; i++) {
-                if (i != bestIndex1 && counts[i] > thirdMaxCount) {
-                    thirdMaxCount = counts[i];
-                    thirdBestIndex = i;
-                }
-            }
-
-            if (thirdBestIndex != -1) {
-                bestIndex2 = thirdBestIndex;
-            }
-        }
-
-        return new int[] { bestIndex1, bestIndex2 };
     }
 
     /**
@@ -760,7 +647,7 @@ public class ProcessingCore extends PApplet {
 
         // Quantize pixels to palette indices
         for (int i = 0; i < PIXEL_COUNT; i++) {
-            int nearestIndex = findNearestPaletteIndex(blockPixels[i]);
+            int nearestIndex = ColorPalette.findNearestPaletteIndex(blockPixels[i], this);
             uniqueIndices.add(nearestIndex);
             quantizedIndices[i] = nearestIndex;
         }
@@ -846,57 +733,6 @@ public class ProcessingCore extends PApplet {
         }
 
         return null; // No exact match found
-    }
-
-    /**
-     * Find the nearest palette color index for an RGB color
-     * Mit xterm-256 kompatibler Farbbehandlung
-     */
-    int findNearestPaletteIndex(int rgbColor) {
-        // Extract alpha channel value
-        int alpha = (rgbColor >> 24) & 0xFF;
-
-        // Vollständig transparente Pixel als Schwarz behandeln (xterm Index 0)
-        if (alpha == 0) {
-            return 0; // In xterm ist 0 Schwarz
-        }
-
-        // Wenn der Pixel schwarz oder nahezu schwarz und opak ist,
-        // direkt opakes Schwarz zurückgeben (Index 0)
-        float r = red(rgbColor);
-        float g = green(rgbColor);
-        float b = blue(rgbColor);
-        if (r <= 5 && g <= 5 && b <= 5 && alpha > 200) {
-            return 0; // In xterm ist 0 Schwarz
-        }
-
-        // Für alle anderen Pixel den nächsten Farbindex in der Palette finden
-        int bestIndex = 0;
-        double minDistSq = Double.MAX_VALUE;
-
-        // Die xterm Palette durchsuchen (alle Indizes)
-        for (int i = 0; i < colorPalette.length; i++) {
-            int palColor = colorPalette[i];
-            float r2 = red(palColor);
-            float g2 = green(palColor);
-            float b2 = blue(palColor);
-
-            // Berechne die RGB-Distanz (ohne Alpha-Komponente)
-            double distSq = (r - r2) * (r - r2) +
-                    (g - g2) * (g - g2) +
-                    (b - b2) * (b - b2);
-
-            if (distSq < minDistSq) {
-                minDistSq = distSq;
-                bestIndex = i;
-            }
-
-            if (minDistSq == 0) {
-                break; // Exakter Match gefunden
-            }
-        }
-
-        return bestIndex;
     }
 
     // ========== DRAWING METHODS ==========
@@ -1994,7 +1830,7 @@ public class ProcessingCore extends PApplet {
 
         // Quantize pixels to palette indices
         for (int i = 0; i < PIXEL_COUNT; i++) {
-            int nearestIndex = findNearestPaletteIndex(blockPixels[i]);
+            int nearestIndex = ColorPalette.findNearestPaletteIndex(blockPixels[i], this);
             uniqueIndices.add(nearestIndex);
             quantizedIndices[i] = nearestIndex;
         }
@@ -2042,7 +1878,7 @@ public class ProcessingCore extends PApplet {
             if (matchA) {
                 int[] simulatedExactA = simulateBlock(currentPattern, colorA, colorB);
                 // Berechne den exakten Fehler für eine genauere Sortierung
-                errorA = calculateColorDistance(blockPixels, simulatedExactA);
+                errorA = ColorPalette.calculateColorDistance(blockPixels, simulatedExactA, this);
 
                 // Ist dies der beste Match bisher?
                 if (errorA < bestError) {
@@ -2067,7 +1903,7 @@ public class ProcessingCore extends PApplet {
             if (matchB) {
                 int[] simulatedExactB = simulateBlock(currentPattern, colorB, colorA);
                 // Berechne den exakten Fehler für eine genauere Sortierung
-                errorB = calculateColorDistance(blockPixels, simulatedExactB);
+                errorB = ColorPalette.calculateColorDistance(blockPixels, simulatedExactB, this);
 
                 // Ist dies der beste Match bisher?
                 if (errorB < bestError) {
@@ -2095,7 +1931,7 @@ public class ProcessingCore extends PApplet {
      */
     private ResultGlyph findApproximateMatchExcluding(int[] blockPixels, Set<Integer> excludedCodepoints) {
         // Find two dominant colors
-        int[] dominantIndices = findDominantPaletteColors(blockPixels);
+        int[] dominantIndices = ColorPalette.findDominantPaletteColors(blockPixels, this, PIXEL_COUNT);
         int color1Index = dominantIndices[0];
         int color2Index = dominantIndices[1];
 
@@ -2143,41 +1979,5 @@ public class ProcessingCore extends PApplet {
         }
 
         return new ResultGlyph(bestCodePoint, bestFgIndex, bestBgIndex);
-    }
-
-    /**
-     * Berechnet den genauen Farbabstand zwischen zwei Pixelblöcken
-     * 
-     * @param blockA Der erste Pixelblock
-     * @param blockB Der zweite Pixelblock
-     * @return Die Summe der quadrierten Farbdifferenzen
-     */
-    private double calculateColorDistance(int[] blockA, int[] blockB) {
-        if (blockA.length != blockB.length) {
-            return Double.MAX_VALUE;
-        }
-
-        double totalError = 0;
-
-        for (int i = 0; i < blockA.length; i++) {
-            int colorA = blockA[i];
-            int colorB = blockB[i];
-
-            // Extrahiere die RGB-Komponenten
-            float r1 = red(colorA);
-            float g1 = green(colorA);
-            float b1 = blue(colorA);
-
-            float r2 = red(colorB);
-            float g2 = green(colorB);
-            float b2 = blue(colorB);
-
-            // Berechne die quadrierte Distanz
-            totalError += (r1 - r2) * (r1 - r2) +
-                    (g1 - g2) * (g1 - g2) +
-                    (b1 - b2) * (b1 - b2);
-        }
-
-        return totalError;
     }
 }
