@@ -976,9 +976,9 @@ public class ProcessingCore extends PApplet {
                         pixelColor = adjustAlpha(pixelColor, alphaValue);
                     }
 
-                    if (pixelColor == -1) {
-                        continue; // Skip if no color is set
-                    }
+                    // if (pixelColor == -1) {
+                    //     continue; // Skip if no color is set
+                    // }
                     fill(pixelColor);
                     rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
                 }
