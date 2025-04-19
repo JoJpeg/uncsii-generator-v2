@@ -8,11 +8,11 @@ import processing.core.PApplet;
  */
 public class ColorPalette {
     private static final int PALETTE_SIZE = 256;
-    private int[] colors;
-    private PApplet app;
+    private static int[] colors;
+    private PApplet p;
 
     public ColorPalette(PApplet app) {
-        this.app = app;
+        this.p = app;
         this.colors = new int[PALETTE_SIZE];
         setupXterm256Palette();
     }
@@ -29,24 +29,24 @@ public class ColorPalette {
         // 232-255: Graustufen
 
         // Standard-Farben (0-7)
-        colors[0] = app.color(0, 0, 0); // 0: Schwarz
-        colors[1] = app.color(128, 0, 0); // 1: Rot
-        colors[2] = app.color(0, 128, 0); // 2: Grün
-        colors[3] = app.color(128, 128, 0); // 3: Gelb
-        colors[4] = app.color(0, 0, 128); // 4: Blau
-        colors[5] = app.color(128, 0, 128); // 5: Magenta
-        colors[6] = app.color(0, 128, 128); // 6: Cyan
-        colors[7] = app.color(192, 192, 192); // 7: Weiß/Hellgrau
+        colors[0] = p.color(0, 0, 0); // 0: Schwarz
+        colors[1] = p.color(128, 0, 0); // 1: Rot
+        colors[2] = p.color(0, 128, 0); // 2: Grün
+        colors[3] = p.color(128, 128, 0); // 3: Gelb
+        colors[4] = p.color(0, 0, 128); // 4: Blau
+        colors[5] = p.color(128, 0, 128); // 5: Magenta
+        colors[6] = p.color(0, 128, 128); // 6: Cyan
+        colors[7] = p.color(192, 192, 192); // 7: Weiß/Hellgrau
 
         // Helle Varianten (8-15)
-        colors[8] = app.color(128, 128, 128); // 8: Dunkelgrau/helles Schwarz
-        colors[9] = app.color(255, 0, 0); // 9: Helles Rot
-        colors[10] = app.color(0, 255, 0); // 10: Helles Grün
-        colors[11] = app.color(255, 255, 0); // 11: Helles Gelb
-        colors[12] = app.color(0, 0, 255); // 12: Helles Blau
-        colors[13] = app.color(255, 0, 255); // 13: Helles Magenta
-        colors[14] = app.color(0, 255, 255); // 14: Helles Cyan
-        colors[15] = app.color(255, 255, 255); // 15: Helles Weiß
+        colors[8] = p.color(128, 128, 128); // 8: Dunkelgrau/helles Schwarz
+        colors[9] = p.color(255, 0, 0); // 9: Helles Rot
+        colors[10] = p.color(0, 255, 0); // 10: Helles Grün
+        colors[11] = p.color(255, 255, 0); // 11: Helles Gelb
+        colors[12] = p.color(0, 0, 255); // 12: Helles Blau
+        colors[13] = p.color(255, 0, 255); // 13: Helles Magenta
+        colors[14] = p.color(0, 255, 255); // 14: Helles Cyan
+        colors[15] = p.color(255, 255, 255); // 15: Helles Weiß
 
         // Farbwürfel (16-231): 6x6x6 RGB
         int index = 16;
@@ -56,7 +56,7 @@ public class ColorPalette {
                     int red = r > 0 ? (r * 40 + 55) : 0;
                     int green = g > 0 ? (g * 40 + 55) : 0;
                     int blue = b > 0 ? (b * 40 + 55) : 0;
-                    colors[index++] = app.color(red, green, blue);
+                    colors[index++] = p.color(red, green, blue);
                 }
             }
         }
@@ -64,7 +64,7 @@ public class ColorPalette {
         // Graustufen (232-255)
         for (int i = 0; i < 24; i++) {
             int value = i * 10 + 8;
-            colors[index++] = app.color(value, value, value);
+            colors[index++] = p.color(value, value, value);
         }
 
         Logger.println("Palette initialisiert mit Standard Xterm-256 Farbwerten");
@@ -74,16 +74,16 @@ public class ColorPalette {
      * Find the nearest palette color index for an RGB color
      * Properly handles RGB distance without mixing alpha concerns
      */
-    public int findNearestColorIndex(int rgbColor) {
+    public int findNearestColorIndexOld(int rgbColor) {
         // Wir berücksichtigen nur die RGB-Komponenten, nicht Alpha
-        float r1 = app.red(rgbColor);
-        float g1 = app.green(rgbColor);
-        float b1 = app.blue(rgbColor);
+        float r1 = p.red(rgbColor);
+        float g1 = p.green(rgbColor);
+        float b1 = p.blue(rgbColor);
 
-        // Spezialfall für schwarze Pixel (für bessere Kompatibilität)
-        if (r1 <= 5 && g1 <= 5 && b1 <= 5) {
-            return 0; // Schwarzer Index in xterm
-        }
+        // // Spezialfall für schwarze Pixel (für bessere Kompatibilität)
+        // if (r1 <= 5 && g1 <= 5 && b1 <= 5) {
+        // return 0; // Schwarzer Index in xterm
+        // }
 
         int bestIndex = 0;
         double minDistSq = Double.MAX_VALUE;
@@ -91,9 +91,9 @@ public class ColorPalette {
         // Durchsuche die gesamte Palette (0-255)
         for (int i = 0; i < colors.length; i++) {
             int palColor = colors[i];
-            float r2 = app.red(palColor);
-            float g2 = app.green(palColor);
-            float b2 = app.blue(palColor);
+            float r2 = p.red(palColor);
+            float g2 = p.green(palColor);
+            float b2 = p.blue(palColor);
 
             // Berechne die RGB-Distanz (ohne Alpha-Komponente)
             double distSq = (r1 - r2) * (r1 - r2) +
@@ -107,6 +107,37 @@ public class ColorPalette {
 
             if (minDistSq == 0) {
                 break; // Exakter Match gefunden
+            }
+        }
+
+        return bestIndex;
+    }
+
+    public int findNearestColorIndex(int rgbColor) {
+        int bestIndex = 0;
+        double minDistSq = Double.MAX_VALUE;
+
+        float r1 = p.red(rgbColor);
+        float g1 = p.green(rgbColor);
+        float b1 = p.blue(rgbColor);
+
+        for (int i = 0; i < colors.length; i++) {
+            int palColor = colors[i];
+            float r2 = p.red(palColor);
+            float g2 = p.green(palColor);
+            float b2 = p.blue(palColor);
+
+            double distSq = (r1 - r2) * (r1 - r2) +
+                    (g1 - g2) * (g1 - g2) +
+                    (b1 - b2) * (b1 - b2);
+
+            if (distSq < minDistSq) {
+                minDistSq = distSq;
+                bestIndex = i;
+            }
+
+            if (minDistSq == 0) {
+                break; // Exact match found
             }
         }
 
@@ -184,11 +215,11 @@ public class ColorPalette {
     /**
      * Get the entire color palette
      */
-    public int[] getColors() {
+    public static int[] getColors() {
         return colors;
     }
 
-    public int[] getPalette() {
+    public static int[] getPalette() {
         return colors;
     }
 

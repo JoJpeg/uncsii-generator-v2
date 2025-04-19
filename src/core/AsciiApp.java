@@ -1,4 +1,5 @@
 package core;
+
 import java.io.File;
 
 import logger.Logger;
@@ -41,17 +42,6 @@ public class AsciiApp extends PApplet {
 
     @Override
     public void setup() {
-        // Initialize font
-        unsciiFont = createFont(fontPath, 8, true);
-        background(0);
-        textFont(unsciiFont);
-        textSize(16);
-        textAlign(CENTER, CENTER);
-        noSmooth(); // Important for pixel-perfect display
-
-        // Create adapter for backwards compatibility
-        processingCoreAdapter = new ProcessingCore();
-        processingCoreAdapter.setup(); // Initialize the adapter properly
 
         // Initialize components
         initializeComponents();
@@ -67,6 +57,18 @@ public class AsciiApp extends PApplet {
      * Initialize all main components
      */
     private void initializeComponents() {
+        // Initialize font
+        unsciiFont = createFont(fontPath, 8, true);
+        background(0);
+        textFont(unsciiFont);
+        textSize(16);
+        textAlign(CENTER, CENTER);
+        noSmooth(); // Important for pixel-perfect display
+
+        // Create adapter for backwards compatibility
+        processingCoreAdapter = new ProcessingCore();
+        // processingCoreAdapter.setup(); // Initialize the adapter properly
+
         // Create core components
         colorPalette = new ColorPalette(this);
         glyphManager = new GlyphManager(this, fontPath, 8);
@@ -320,7 +322,7 @@ public class AsciiApp extends PApplet {
      */
     public static void main(String[] args) {
         try {
-            PApplet.main(new String[] { "AsciiApp" });
+            PApplet.main(new String[] { "core.AsciiApp" });
         } catch (Exception e) {
             Logger.println("Error starting the application: " + e.getMessage());
             e.printStackTrace();

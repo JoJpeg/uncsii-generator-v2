@@ -149,9 +149,9 @@ public class ProcessingCore extends PApplet {
 
         // Initialize control panel
         initControlPanel();
-
+        new ColorPalette(this);
         // Setup application
-        setupPalette();
+        colorPalette = ColorPalette.getColors();
         initializeDefaultPaths();
         generateFontPatterns();
     }
@@ -251,62 +251,65 @@ public class ProcessingCore extends PApplet {
         Logger.println("Press '1'-'8' to change display scale.");
     }
 
-    /**
-     * Setup the xterm-256 color palette
-     */
-    private void setupPalette() {
-        colorPalette = new int[256];
+    // /**
+    // * Setup the xterm-256 color palette
+    // */
+    // private void setupPalette() {
+    // colorPalette = new int[256];
 
-        // Reserved color index for transparency (fully transparent black)
-        // Using 0 alpha to make it fully transparent
-        colorPalette[0] = color(0, 0, 0, 0);
+    // // Reserved color index for transparency (fully transparent black)
+    // // Using 0 alpha to make it fully transparent
+    // colorPalette[0] = color(0, 0, 0, 0);
 
-        // Standard 16 colors (now starting at index 1)
-        int[] basic16 = {
-                color(128, 0, 0), color(0, 128, 0), color(128, 128, 0),
-                color(0, 0, 128), color(128, 0, 128), color(0, 128, 128), color(192, 192, 192),
-                color(128, 128, 128), color(255, 0, 0), color(0, 255, 0), color(255, 255, 0),
-                color(0, 0, 255), color(255, 0, 255), color(0, 255, 255), color(255, 255, 255)
-        };
+    // // Standard 16 colors (now starting at index 1)
+    // int[] basic16 = {
+    // color(128, 0, 0), color(0, 128, 0), color(128, 128, 0),
+    // color(0, 0, 128), color(128, 0, 128), color(0, 128, 128), color(192, 192,
+    // 192),
+    // color(128, 128, 128), color(255, 0, 0), color(0, 255, 0), color(255, 255, 0),
+    // color(0, 0, 255), color(255, 0, 255), color(0, 255, 255), color(255, 255,
+    // 255)
+    // };
 
-        // Copy basic 16 colors (starting at index 1)
-        System.arraycopy(basic16, 0, colorPalette, 1, basic16.length);
+    // // Copy basic 16 colors (starting at index 1)
+    // System.arraycopy(basic16, 0, colorPalette, 1, basic16.length);
 
-        // Generate the 216 color cube (6x6x6)
-        int index = 16 + 1; // +1 to account for the reserved transparent color
-        for (int r = 0; r < 6; r++) {
-            for (int g = 0; g < 6; g++) {
-                for (int b = 0; b < 6; b++) {
-                    int red = r > 0 ? (r * 40 + 55) : 0;
-                    int green = g > 0 ? (g * 40 + 55) : 0;
-                    int blue = b > 0 ? (b * 40 + 55) : 0;
-                    colorPalette[index++] = color(red, green, blue);
-                }
-            }
-        }
+    // // Generate the 216 color cube (6x6x6)
+    // int index = 16 + 1; // +1 to account for the reserved transparent color
+    // for (int r = 0; r < 6; r++) {
+    // for (int g = 0; g < 6; g++) {
+    // for (int b = 0; b < 6; b++) {
+    // int red = r > 0 ? (r * 40 + 55) : 0;
+    // int green = g > 0 ? (g * 40 + 55) : 0;
+    // int blue = b > 0 ? (b * 40 + 55) : 0;
+    // colorPalette[index++] = color(red, green, blue);
+    // }
+    // }
+    // }
 
-        // Generate the grayscale ramp (24 colors)
-        for (int i = 0; i < 24; i++) {
-            int value = i * 10 + 8;
-            if (index < 256) {
-                colorPalette[index] = color(value, value, value);
-            }
-            index++;
-        }
+    // // Generate the grayscale ramp (24 colors)
+    // for (int i = 0; i < 24; i++) {
+    // int value = i * 10 + 8;
+    // if (index < 256) {
+    // colorPalette[index] = color(value, value, value);
+    // }
+    // index++;
+    // }
 
-        // Add an additional semi-transparent black (80% transparency)
-        // This gives some options between fully transparent and opaque
-        if (index < 256) {
-            colorPalette[index] = color(0, 0, 0, 51); // ~20% opacity
-            index++;
-        }
+    // // Add an additional semi-transparent black (80% transparency)
+    // // This gives some options between fully transparent and opaque
+    // if (index < 256) {
+    // colorPalette[index] = color(0, 0, 0, 51); // ~20% opacity
+    // index++;
+    // }
 
-        if (colorPalette.length != 256) {
-            Logger.println("WARNING: Color Palette size is not 256!");
-        }
+    // if (colorPalette.length != 256) {
+    // Logger.println("WARNING: Color Palette size is not 256!");
+    // }
 
-        Logger.println("Palette initialized with transparency support. Index 0 = transparent.");
-    }
+    // Logger.println("Palette initialized with transparency support. Index 0 =
+    // transparent.");
+    // }
 
     // ========== IMAGE LOADING AND PROCESSING ==========
 
@@ -1190,7 +1193,6 @@ public class ProcessingCore extends PApplet {
                 // Speichere den alten Zustand, bevor wir ihn ändern
                 boolean oldHasSelection = hasSelection;
 
-
                 hasSelection = false; // Clear previous final selection
                 selectionStartX = gridClickX;
                 selectionStartY = gridClickY;
@@ -1322,7 +1324,7 @@ public class ProcessingCore extends PApplet {
                     selectionEndY = selectionStartY;
 
                 // Check if the selection is just a single cell (no actual drag)
-                if ( selectionStartY == selectionEndY && !startedDragging) {
+                if (selectionStartY == selectionEndY && !startedDragging) {
                     // Es war nur ein Klick, keine richtige Selektion
                     selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
                     hasSelection = false;
@@ -1909,7 +1911,7 @@ public class ProcessingCore extends PApplet {
      */
     public static void main(String[] args) {
         try {
-            PApplet.main(new String[] { "ProcessingCore" });
+            PApplet.main(new String[] { "core.ProcessingCore" });
         } catch (Exception e) {
             Logger.println("Error starting the application: " + e.getMessage());
             e.printStackTrace();

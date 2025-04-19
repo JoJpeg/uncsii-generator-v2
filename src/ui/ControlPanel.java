@@ -135,11 +135,13 @@ public class ControlPanel extends JFrame implements ActionListener {
                     for (int x = 0; x < ProcessingCore.GLYPH_WIDTH; x++) {
                         int bitIndex = y * ProcessingCore.GLYPH_WIDTH + x;
                         boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
-                        g.setColor(pixelOn ? fgColor : bgColor);
-                        // Positioniere die schwarz-weiße Darstellung an der gleichen Stelle wie die
-                        // farbige
-                        g.fillRect(xOffset + x * PREVIEW_PIXEL_SIZE, y * PREVIEW_PIXEL_SIZE,
-                                PREVIEW_PIXEL_SIZE, PREVIEW_PIXEL_SIZE);
+                        if (pixelOn) {
+                            g.setColor(fgColor);
+                            // Positioniere die schwarz-weiße Darstellung an der gleichen Stelle wie die
+                            // farbige
+                            g.fillRect(xOffset + x * PREVIEW_PIXEL_SIZE, y * PREVIEW_PIXEL_SIZE,
+                                    PREVIEW_PIXEL_SIZE, PREVIEW_PIXEL_SIZE);
+                        }
                     }
                 }
             }
