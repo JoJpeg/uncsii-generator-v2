@@ -14,7 +14,8 @@ public class ColorPalette {
     public ColorPalette(PApplet app) {
         this.p = app;
         colors = new int[PALETTE_SIZE];
-        setupXterm256Palette();
+        // setupXterm256Palette();
+        setupPalette(app);
     }
 
     /**
@@ -198,7 +199,7 @@ public class ColorPalette {
     /**
      * Find the two most dominant palette colors in a block of pixels
      */
-    public static int[] findDominantPaletteColors(int[] blockPixels, PApplet p, int PIXEL_COUNT) {
+    public static int[] findDominantPaletteColorsOld(int[] blockPixels, PApplet p, int PIXEL_COUNT) {
         int[] counts = new int[256];
 
         // Count occurrences of each palette color
@@ -246,6 +247,48 @@ public class ColorPalette {
             }
         }
 
+        return new int[] { bestIndex1, bestIndex2 };
+    }
+
+    public static int[] findDominantPaletteColors(int[] blockPixels, PApplet p, int PIXEL_COUNT) {
+        int[] counts = new int[256];
+
+        for (int i = 0; i < PIXEL_COUNT; i++) {
+            int nearestIndex = ColorPalette.findNearestPaletteIndex(blockPixels[i], p);
+            counts[nearestIndex]++;
+        }
+
+        int bestIndex1 = -1, bestIndex2 = -1;
+        int maxCount1 = -1, maxCount2 = -1;
+
+        for (int i = 0; i < 256; i++) {
+            if (counts[i] > maxCount1) {
+                maxCount2 = maxCount1;
+                bestIndex2 = bestIndex1;
+                maxCount1 = counts[i];
+                bestIndex1 = i;
+            } else if (counts[i] > maxCount2) {
+                maxCount2 = counts[i];
+                bestIndex2 = i;
+            }
+        }
+
+        if (bestIndex1 == -1)
+            bestIndex1 = 0;
+        if (bestIndex2 == -1 || bestIndex2 == bestIndex1) {
+            bestIndex2 = (bestIndex1 == 0) ? 15 : 0;
+            int thirdMaxCount = -1;
+            int thirdBestIndex = -1;
+            for (int i = 0; i < 256; i++) {
+                if (i != bestIndex1 && counts[i] > thirdMaxCount) {
+                    thirdMaxCount = counts[i];
+                    thirdBestIndex = i;
+                }
+            }
+            if (thirdBestIndex != -1) {
+                bestIndex2 = thirdBestIndex;
+            }
+        }
         return new int[] { bestIndex1, bestIndex2 };
     }
 
@@ -300,7 +343,6 @@ public class ColorPalette {
         return bestIndex;
     }
 
-
     /**
      * Get the RGB color value for a palette index
      */
@@ -327,5 +369,116 @@ public class ColorPalette {
      */
     public int size() {
         return PALETTE_SIZE;
+    }
+
+    void setupPalette(PApplet p) {
+        colors = new int[] {
+                p.color(0, 0, 0), p.color(128, 0, 0), p.color(0, 128, 0), p.color(128, 128, 0), p.color(0, 0, 128),
+                p.color(128, 0, 128), p.color(0, 128, 128), p.color(192, 192, 192),
+                p.color(128, 128, 128), p.color(255, 0, 0), p.color(0, 255, 0), p.color(255, 255, 0),
+                p.color(0, 0, 255),
+                p.color(255, 0, 255), p.color(0, 255, 255), p.color(255, 255, 255),
+                p.color(0, 0, 0), p.color(0, 0, 95), p.color(0, 0, 135), p.color(0, 0, 175), p.color(0, 0, 215),
+                p.color(0, 0, 255),
+                p.color(0, 95, 0), p.color(0, 95, 95), p.color(0, 95, 135), p.color(0, 95, 175), p.color(0, 95, 215),
+                p.color(0, 95, 255),
+                p.color(0, 135, 0), p.color(0, 135, 95), p.color(0, 135, 135), p.color(0, 135, 175),
+                p.color(0, 135, 215),
+                p.color(0, 135, 255),
+                p.color(0, 175, 0), p.color(0, 175, 95), p.color(0, 175, 135), p.color(0, 175, 175),
+                p.color(0, 175, 215),
+                p.color(0, 175, 255),
+                p.color(0, 215, 0), p.color(0, 215, 95), p.color(0, 215, 135), p.color(0, 215, 175),
+                p.color(0, 215, 215),
+                p.color(0, 215, 255),
+                p.color(0, 255, 0), p.color(0, 255, 95), p.color(0, 255, 135), p.color(0, 255, 175),
+                p.color(0, 255, 215),
+                p.color(0, 255, 255),
+                p.color(95, 0, 0), p.color(95, 0, 95), p.color(95, 0, 135), p.color(95, 0, 175), p.color(95, 0, 215),
+                p.color(95, 0, 255),
+                p.color(95, 95, 0), p.color(95, 95, 95), p.color(95, 95, 135), p.color(95, 95, 175),
+                p.color(95, 95, 215),
+                p.color(95, 95, 255),
+                p.color(95, 135, 0), p.color(95, 135, 95), p.color(95, 135, 135), p.color(95, 135, 175),
+                p.color(95, 135, 215),
+                p.color(95, 135, 255),
+                p.color(95, 175, 0), p.color(95, 175, 95), p.color(95, 175, 135), p.color(95, 175, 175),
+                p.color(95, 175, 215),
+                p.color(95, 175, 255),
+                p.color(95, 215, 0), p.color(95, 215, 95), p.color(95, 215, 135), p.color(95, 215, 175),
+                p.color(95, 215, 215),
+                p.color(95, 215, 255),
+                p.color(95, 255, 0), p.color(95, 255, 95), p.color(95, 255, 135), p.color(95, 255, 175),
+                p.color(95, 255, 215),
+                p.color(95, 255, 255),
+                p.color(135, 0, 0), p.color(135, 0, 95), p.color(135, 0, 135), p.color(135, 0, 175),
+                p.color(135, 0, 215),
+                p.color(135, 0, 255),
+                p.color(135, 95, 0), p.color(135, 95, 95), p.color(135, 95, 135), p.color(135, 95, 175),
+                p.color(135, 95, 215),
+                p.color(135, 95, 255),
+                p.color(135, 135, 0), p.color(135, 135, 95), p.color(135, 135, 135), p.color(135, 135, 175),
+                p.color(135, 135, 215), p.color(135, 135, 255),
+                p.color(135, 175, 0), p.color(135, 175, 95), p.color(135, 175, 135), p.color(135, 175, 175),
+                p.color(135, 175, 215), p.color(135, 175, 255),
+                p.color(135, 215, 0), p.color(135, 215, 95), p.color(135, 215, 135), p.color(135, 215, 175),
+                p.color(135, 215, 215), p.color(135, 215, 255),
+                p.color(135, 255, 0), p.color(135, 255, 95), p.color(135, 255, 135), p.color(135, 255, 175),
+                p.color(135, 255, 215), p.color(135, 255, 255),
+                p.color(175, 0, 0), p.color(175, 0, 95), p.color(175, 0, 135), p.color(175, 0, 175),
+                p.color(175, 0, 215),
+                p.color(175, 0, 255),
+                p.color(175, 95, 0), p.color(175, 95, 95), p.color(175, 95, 135), p.color(175, 95, 175),
+                p.color(175, 95, 215),
+                p.color(175, 95, 255),
+                p.color(175, 135, 0), p.color(175, 135, 95), p.color(175, 135, 135), p.color(175, 135, 175),
+                p.color(175, 135, 215), p.color(175, 135, 255),
+                p.color(175, 175, 0), p.color(175, 175, 95), p.color(175, 175, 135), p.color(175, 175, 175),
+                p.color(175, 175, 215), p.color(175, 175, 255),
+                p.color(175, 215, 0), p.color(175, 215, 95), p.color(175, 215, 135), p.color(175, 215, 175),
+                p.color(175, 215, 215), p.color(175, 215, 255),
+                p.color(175, 255, 0), p.color(175, 255, 95), p.color(175, 255, 135), p.color(175, 255, 175),
+                p.color(175, 255, 215), p.color(175, 255, 255),
+                p.color(215, 0, 0), p.color(215, 0, 95), p.color(215, 0, 135), p.color(215, 0, 175),
+                p.color(215, 0, 215),
+                p.color(215, 0, 255),
+                p.color(215, 95, 0), p.color(215, 95, 95), p.color(215, 95, 135), p.color(215, 95, 175),
+                p.color(215, 95, 215),
+                p.color(215, 95, 255),
+                p.color(215, 135, 0), p.color(215, 135, 95), p.color(215, 135, 135), p.color(215, 135, 175),
+                p.color(215, 135, 215), p.color(215, 135, 255),
+                p.color(215, 175, 0), p.color(215, 175, 95), p.color(215, 175, 135), p.color(215, 175, 175),
+                p.color(215, 175, 215), p.color(215, 175, 255),
+                p.color(215, 215, 0), p.color(215, 215, 95), p.color(215, 215, 135), p.color(215, 215, 175),
+                p.color(215, 215, 215), p.color(215, 215, 255),
+                p.color(215, 255, 0), p.color(215, 255, 95), p.color(215, 255, 135), p.color(215, 255, 175),
+                p.color(215, 255, 215), p.color(215, 255, 255),
+                p.color(255, 0, 0), p.color(255, 0, 95), p.color(255, 0, 135), p.color(255, 0, 175),
+                p.color(255, 0, 215),
+                p.color(255, 0, 255),
+                p.color(255, 95, 0), p.color(255, 95, 95), p.color(255, 95, 135), p.color(255, 95, 175),
+                p.color(255, 95, 215),
+                p.color(255, 95, 255),
+                p.color(255, 135, 0), p.color(255, 135, 95), p.color(255, 135, 135), p.color(255, 135, 175),
+                p.color(255, 135, 215), p.color(255, 135, 255),
+                p.color(255, 175, 0), p.color(255, 175, 95), p.color(255, 175, 135), p.color(255, 175, 175),
+                p.color(255, 175, 215), p.color(255, 175, 255),
+                p.color(255, 215, 0), p.color(255, 215, 95), p.color(255, 215, 135), p.color(255, 215, 175),
+                p.color(255, 215, 215), p.color(255, 215, 255),
+                p.color(255, 255, 0), p.color(255, 255, 95), p.color(255, 255, 135), p.color(255, 255, 175),
+                p.color(255, 255, 215), p.color(255, 255, 255),
+                p.color(8, 8, 8), p.color(18, 18, 18), p.color(28, 28, 28), p.color(38, 38, 38), p.color(48, 48, 48),
+                p.color(58, 58, 58),
+                p.color(68, 68, 68), p.color(78, 78, 78), p.color(88, 88, 88), p.color(98, 98, 98),
+                p.color(108, 108, 108),
+                p.color(118, 118, 118),
+                p.color(128, 128, 128), p.color(138, 138, 138), p.color(148, 148, 148), p.color(158, 158, 158),
+                p.color(168, 168, 168), p.color(178, 178, 178),
+                p.color(188, 188, 188), p.color(198, 198, 198), p.color(208, 208, 208), p.color(218, 218, 218),
+                p.color(228, 228, 228), p.color(238, 238, 238)
+        };
+        if (colors.length != 256) {
+            Logger.println("WARNING: Color Palette size is not 256!");
+        }
     }
 }

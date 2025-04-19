@@ -30,6 +30,7 @@ import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
+import core.ColorPalette;
 import core.ProcessingCore;
 import core.ResultGlyph;
 import logger.Logger;
@@ -83,7 +84,7 @@ public class ControlPanel extends JFrame implements ActionListener {
 
     private GlyphPreviewPanel glyphPreviewPanel; // Panel to display the clicked glyph
     private ResultGlyph currentClickedGlyph; // Store the currently clicked glyph
-    private int[] currentColorPalette; // Store the palette
+    // private int[] currentColorPalette; // Store the palette
     private Map<Integer, Long> currentAsciiPatterns; // Store the patterns
 
     // Internal Clipboards
@@ -123,7 +124,7 @@ public class ControlPanel extends JFrame implements ActionListener {
         }
 
         public void drawOnlyGlyph(Graphics g) {
-            if (currentClickedGlyph != null && currentColorPalette != null && currentAsciiPatterns != null) {
+            if (currentClickedGlyph != null && ColorPalette.getColors() != null && currentAsciiPatterns != null) {
                 long pattern = currentAsciiPatterns.getOrDefault(currentClickedGlyph.codePoint, 0L);
                 Color fgColor = Color.BLACK;
                 Color bgColor = Color.WHITE;
@@ -151,10 +152,10 @@ public class ControlPanel extends JFrame implements ActionListener {
             g.setColor(getBackground());
             g.fillRect(0, 0, getWidth(), getHeight());
 
-            if (currentClickedGlyph != null && currentColorPalette != null && currentAsciiPatterns != null) {
+            if (currentClickedGlyph != null && ColorPalette.getColors() != null && currentAsciiPatterns != null) {
                 long pattern = currentAsciiPatterns.getOrDefault(currentClickedGlyph.codePoint, 0L);
-                int fgColorInt = currentColorPalette[currentClickedGlyph.fgIndex];
-                int bgColorInt = currentColorPalette[currentClickedGlyph.bgIndex];
+                int fgColorInt = ColorPalette.getColors()[currentClickedGlyph.fgIndex];
+                int bgColorInt = ColorPalette.getColors()[currentClickedGlyph.bgIndex];
                 Color fgColor = new Color(fgColorInt, true); // Use Processing color int directly
                 Color bgColor = new Color(bgColorInt, true);
 
@@ -712,7 +713,7 @@ public class ControlPanel extends JFrame implements ActionListener {
     public void updateClickedInfo(int x, int y, ResultGlyph glyph, int[] colorPalette,
             Map<Integer, Long> asciiPatterns) {
         this.currentClickedGlyph = glyph;
-        this.currentColorPalette = colorPalette;
+        // this.currentColorPalette = colorPalette;
         this.currentAsciiPatterns = asciiPatterns;
 
         boolean glyphSelected = (x >= 0 && y >= 0 && glyph != null);

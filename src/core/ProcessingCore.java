@@ -88,7 +88,7 @@ public class ProcessingCore extends PApplet {
     public int gridHeight;
     private String imagePath;
     private String outputPath = DEFAULT_OUTPUT_PATH;
-    public int[] colorPalette; // Color palette (256 colors)
+    // public int[] ColorPalette.getColors(); // Color palette (256 colors)
     private ImageLoadingState imageLoadingState = ImageLoadingState.NONE;
 
     // Synchronization flag to avoid race conditions
@@ -152,7 +152,7 @@ public class ProcessingCore extends PApplet {
         initControlPanel();
         new ColorPalette(this);
         // Setup application
-        colorPalette = ColorPalette.getColors();
+        // ColorPalette.getColors() = ColorPalette.getColors().getColors();
         initializeDefaultPaths();
         generateFontPatterns();
     }
@@ -386,7 +386,7 @@ public class ProcessingCore extends PApplet {
             selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
 
             if (controlPanel != null) {
-                controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
+                controlPanel.updateClickedInfo(-1, -1, null, ColorPalette.getColors(), asciiPatterns);
                 controlPanel.updateSelectionInfo(-1, -1, null);
             }
 
@@ -510,7 +510,7 @@ public class ProcessingCore extends PApplet {
         int avgAlpha = totalAlpha / blockPixels.length;
 
         // Find two dominant colors
-        int[] dominantIndices = ColorPalette.findDominantPaletteColors(blockPixels, this, PIXEL_COUNT);
+        int[] dominantIndices = ColorPalette. findDominantPaletteColors(blockPixels, this, PIXEL_COUNT);
         int color1Index = dominantIndices[0];
         int color2Index = dominantIndices[1];
 
@@ -571,8 +571,8 @@ public class ProcessingCore extends PApplet {
      */
     double calculateMatchError(long pattern, int fgIndex, int bgIndex, int[] originalBlockPixels) {
         double totalError = 0;
-        int fgColor = colorPalette[fgIndex];
-        int bgColor = colorPalette[bgIndex];
+        int fgColor = ColorPalette.getColors()[fgIndex];
+        int bgColor = ColorPalette.getColors()[bgIndex];
 
         // Extract RGB components
         float fgR = red(fgColor);
@@ -647,7 +647,7 @@ public class ProcessingCore extends PApplet {
 
         // Quantize pixels to palette indices
         for (int i = 0; i < PIXEL_COUNT; i++) {
-            int nearestIndex = ColorPalette.findNearestPaletteIndex(blockPixels[i], this);
+            int nearestIndex = ColorPalette. findNearestPaletteIndex(blockPixels[i], this);
             uniqueIndices.add(nearestIndex);
             quantizedIndices[i] = nearestIndex;
         }
@@ -685,8 +685,8 @@ public class ProcessingCore extends PApplet {
         Integer[] indices = uniqueIndices.toArray(new Integer[0]);
         int indexA = indices[0];
         int indexB = indices[1];
-        int colorA = colorPalette[indexA];
-        int colorB = colorPalette[indexB];
+        int colorA = ColorPalette.getColors()[indexA];
+        int colorB = ColorPalette.getColors()[indexB];
 
         // Try each glyph pattern
         for (Map.Entry<Integer, Long> entry : asciiPatterns.entrySet()) {
@@ -816,8 +816,8 @@ public class ProcessingCore extends PApplet {
                 }
 
                 long pattern = asciiPatterns.getOrDefault(glyphInfo.codePoint, 0L);
-                int fgColor = colorPalette[glyphInfo.fgIndex];
-                int bgColor = colorPalette[glyphInfo.bgIndex];
+                int fgColor = ColorPalette.getColors()[glyphInfo.fgIndex];
+                int bgColor = ColorPalette.getColors()[glyphInfo.bgIndex];
                 int screenX = gridOriginX + x * cellWidth;
                 int screenY = gridOriginY + y * cellHeight;
 
@@ -1046,7 +1046,7 @@ public class ProcessingCore extends PApplet {
                 clickedGridY = -1;
                 clickedGlyph = null;
                 if (controlPanel != null) {
-                    controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
+                    controlPanel.updateClickedInfo(-1, -1, null, ColorPalette.getColors(), asciiPatterns);
                 }
                 Logger.println("Selection started at: (" + selectionStartX + "," + selectionStartY + ")");
 
@@ -1069,7 +1069,7 @@ public class ProcessingCore extends PApplet {
                 clickedGridY = -1;
                 clickedGlyph = null;
                 if (controlPanel != null) {
-                    controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
+                    controlPanel.updateClickedInfo(-1, -1, null, ColorPalette.getColors(), asciiPatterns);
                 }
                 Logger.println("Clicked outside grid, selection cleared.");
             }
@@ -1092,7 +1092,7 @@ public class ProcessingCore extends PApplet {
             clickedGridY = -1;
             clickedGlyph = null;
             if (controlPanel != null) {
-                controlPanel.updateClickedInfo(-1, -1, null, colorPalette, asciiPatterns);
+                controlPanel.updateClickedInfo(-1, -1, null, ColorPalette.getColors(), asciiPatterns);
             }
         }
     }
@@ -1212,7 +1212,7 @@ public class ProcessingCore extends PApplet {
                 clickedGridY = gridClickY;
                 clickedGlyph = resultGrid[clickedGridY][gridClickX];
                 if (controlPanel != null) {
-                    controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, colorPalette,
+                    controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, ColorPalette.getColors(),
                             asciiPatterns);
                 }
                 Logger.println("Single cell clicked: X=" + clickedGridX + ", Y=" + clickedGridY);
@@ -1463,7 +1463,7 @@ public class ProcessingCore extends PApplet {
     public void replaceClickedGlyphColors(int fgIndex, int bgIndex) {
         if (clickedGlyph != null && clickedGridX >= 0 && clickedGridY >= 0) {
             // Validate indices (optional but recommended)
-            if (fgIndex < 0 || fgIndex >= colorPalette.length || bgIndex < 0 || bgIndex >= colorPalette.length) {
+            if (fgIndex < 0 || fgIndex >= ColorPalette.getColors().length || bgIndex < 0 || bgIndex >= ColorPalette.getColors().length) {
                 Logger.println("Error: Invalid color indices provided (FG: " + fgIndex + ", BG: " + bgIndex
                         + "). Must be between 0 and 255.");
                 return;
@@ -1502,8 +1502,8 @@ public class ProcessingCore extends PApplet {
                         + " not found in font patterns. Cannot replace.");
                 return;
             }
-            if (sourceGlyph.fgIndex < 0 || sourceGlyph.fgIndex >= colorPalette.length || sourceGlyph.bgIndex < 0
-                    || sourceGlyph.bgIndex >= colorPalette.length) {
+            if (sourceGlyph.fgIndex < 0 || sourceGlyph.fgIndex >= ColorPalette.getColors().length || sourceGlyph.bgIndex < 0
+                    || sourceGlyph.bgIndex >= ColorPalette.getColors().length) {
                 Logger.println("Error: Invalid color indices in source glyph (FG: " + sourceGlyph.fgIndex + ", BG: "
                         + sourceGlyph.bgIndex + ").");
                 return;
@@ -1844,8 +1844,8 @@ public class ProcessingCore extends PApplet {
         Integer[] indices = uniqueIndices.toArray(new Integer[0]);
         int indexA = indices[0];
         int indexB = indices[1];
-        int colorA = colorPalette[indexA];
-        int colorB = colorPalette[indexB];
+        int colorA = ColorPalette.getColors()[indexA];
+        int colorB = ColorPalette.getColors()[indexB];
 
         // Beste Übereinstimmung und Fehler speichern
         int bestCodePoint = -1;

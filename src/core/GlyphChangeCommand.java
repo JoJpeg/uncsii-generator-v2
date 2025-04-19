@@ -53,7 +53,7 @@ public class GlyphChangeCommand implements Command {
                 // Control Panel aktualisieren
                 if (processingCore.controlPanel != null) {
                     processingCore.controlPanel.updateClickedInfo(gridX, gridY, processingCore.clickedGlyph,
-                            processingCore.colorPalette, processingCore.asciiPatterns);
+                            ColorPalette.getColors(), processingCore.asciiPatterns);
                 }
             }
             Logger.println("Glyphe bei (" + gridX + "," + gridY + ") geändert.");
@@ -82,7 +82,7 @@ public class GlyphChangeCommand implements Command {
                 // Control Panel aktualisieren
                 if (processingCore.controlPanel != null) {
                     processingCore.controlPanel.updateClickedInfo(gridX, gridY, processingCore.clickedGlyph,
-                            processingCore.colorPalette, processingCore.asciiPatterns);
+                            ColorPalette.getColors(), processingCore.asciiPatterns);
                 }
             }
             Logger.println("Glyphenänderung bei (" + gridX + "," + gridY + ") rückgängig gemacht.");
