@@ -159,7 +159,7 @@ public class ProcessingCore extends PApplet {
 
     @Override
     public void draw() {
-        background(30);
+        background(255, 0, 0);
 
         // When image is processing, show a loading indicator
         if (isImageProcessing) {
@@ -510,7 +510,7 @@ public class ProcessingCore extends PApplet {
         int avgAlpha = totalAlpha / blockPixels.length;
 
         // Find two dominant colors
-        int[] dominantIndices = ColorPalette. findDominantPaletteColors(blockPixels, this, PIXEL_COUNT);
+        int[] dominantIndices = ColorPalette.findDominantPaletteColors(blockPixels, this, PIXEL_COUNT);
         int color1Index = dominantIndices[0];
         int color2Index = dominantIndices[1];
 
@@ -529,19 +529,49 @@ public class ProcessingCore extends PApplet {
             double errorA = calculateMatchError(currentPattern, color1Index, color2Index, blockPixels);
             double errorB = calculateMatchError(currentPattern, color2Index, color1Index, blockPixels);
 
-            // Update best match
-            if (errorA < minError) {
-                minError = errorA;
-                bestCodePoint = currentCodePoint;
-                bestFgIndex = color1Index;
-                bestBgIndex = color2Index;
+            int brightness1 = (int) calculateBrightness(ColorPalette.getColors()[color1Index]);
+            int brightness2 = (int) calculateBrightness(ColorPalette.getColors()[color2Index]);
+
+            boolean usePreference = ControlPanel.usePreference;
+            boolean appliesToPreferredColor = true;
+            if (usePreference) {
+                boolean preferBrightAsForeground = ControlPanel.preferLightForeground;
+                if (brightness1 > brightness2) {
+                    appliesToPreferredColor = preferBrightAsForeground;
+                } else {
+                    appliesToPreferredColor = !preferBrightAsForeground;
+                }
             }
 
-            if (errorB < minError) {
-                minError = errorB;
-                bestCodePoint = currentCodePoint;
-                bestFgIndex = color2Index;
-                bestBgIndex = color1Index;
+            // Update best match
+            if (usePreference) {
+                if (errorA < minError && appliesToPreferredColor) {
+                    minError = errorA;
+                    bestCodePoint = currentCodePoint;
+                    bestFgIndex = color1Index;
+                    bestBgIndex = color2Index;
+                }
+
+                if (errorB < minError && !appliesToPreferredColor) {
+                    minError = errorB;
+                    bestCodePoint = currentCodePoint;
+                    bestFgIndex = color2Index;
+                    bestBgIndex = color1Index;
+                }
+            } else {
+                if (errorA < minError) {
+                    minError = errorA;
+                    bestCodePoint = currentCodePoint;
+                    bestFgIndex = color1Index;
+                    bestBgIndex = color2Index;
+                }
+
+                if (errorB < minError) {
+                    minError = errorB;
+                    bestCodePoint = currentCodePoint;
+                    bestFgIndex = color2Index;
+                    bestBgIndex = color1Index;
+                }
             }
         }
 
@@ -607,6 +637,23 @@ public class ProcessingCore extends PApplet {
     }
 
     /**
+     * Calculate perceived brightness of a color (using common formula)
+     * 
+     * @param color The color as an int
+     * @return Brightness value between 0 and 255
+     */
+    private float calculateBrightness(int color) {
+        // Extract RGB components
+        float r = red(color);
+        float g = green(color);
+        float b = blue(color);
+
+        // Calculate perceived brightness using standard formula
+        // (0.299*R + 0.587*G + 0.114*B)
+        return 0.299f * r + 0.587f * g + 0.114f * b;
+    }
+
+    /**
      * Simulate a block of pixels using a pattern and colors
      */
     int[] simulateBlock(long pattern, int fgColor, int bgColor) {
@@ -647,7 +694,7 @@ public class ProcessingCore extends PApplet {
 
         // Quantize pixels to palette indices
         for (int i = 0; i < PIXEL_COUNT; i++) {
-            int nearestIndex = ColorPalette. findNearestPaletteIndex(blockPixels[i], this);
+            int nearestIndex = ColorPalette.findNearestPaletteIndex(blockPixels[i], this);
             uniqueIndices.add(nearestIndex);
             quantizedIndices[i] = nearestIndex;
         }
@@ -838,6 +885,74 @@ public class ProcessingCore extends PApplet {
     }
 
     /**
+     * Display a scaled glyph with the given pattern and colors
+     * Now with improved transparency support using alpha values
+     */
+    void displayScaledGlyph(long pattern, int screenX, int screenY, int pixelSize, int bgCol, int fgCol,
+            int alphaValue) {
+        noStroke();
+
+        // Prüfen, ob aufgrund des Alpha-Wertes der Hintergrund transparent gerendert
+        // werden soll
+        boolean useTransparentBackground = (alphaValue < 127);
+
+        for (int y = 0; y < GLYPH_HEIGHT; y++) {
+            for (int x = 0; x < GLYPH_WIDTH; x++) {
+                int bitIndex = y * GLYPH_WIDTH + x;
+                boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
+
+                // Set the fill color based on pattern and transparency setting
+                int pixelColor = -1;
+                boolean shouldDraw = true;
+
+                if (pixelOn) {
+                    // Für Vordergrundpixel verwenden wir immer die Vordergrundfarbe
+                    pixelColor = fgCol;
+
+                    // Bei voll transparenten Glyphen (Alpha = 0) zeichnen wir auch Vordergrund
+                    // nicht
+                    // if (alphaValue == 0) {
+                    // shouldDraw = false;
+                    // }
+                } else {
+                    // Für Hintergrundpixel entscheiden wir basierend auf dem Alpha-Wert
+                    if (useTransparentBackground) {
+                        // Wenn Alpha < 127, zeichnen wir den Hintergrund nicht (transparent)
+                        shouldDraw = false;
+                    } else {
+                        // Ansonsten verwenden wir die Hintergrundfarbe
+                        pixelColor = bgCol;
+                    }
+                }
+
+                // Nur zeichnen, wenn das Pixel nicht transparent sein soll
+                if (shouldDraw) {
+                    // Wir passen den Alpha-Wert der Farbe entsprechend an (außer bei voller
+                    // Transparenz)
+                    if (alphaValue > 0 && alphaValue < 255) {
+                        // Alpha-Wert anwenden, aber nur wenn nicht bereits voll opak oder transparent
+                        // pixelColor = adjustAlpha(pixelColor, alphaValue);
+                    }
+
+                    // if (pixelColor == -1) {
+                    // continue; // Skip if no color is set
+                    // }
+                    fill(pixelColor);
+                    rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
+                }
+            }
+        }
+    }
+
+    /**
+     * Hilfsmethode zum Anpassen des Alpha-Wertes einer Farbe
+     */
+    private int adjustAlpha(int color, int alphaValue) {
+        // Wir behalten RGB bei und ersetzen nur den Alpha-Kanal
+        return (color & 0x00FFFFFF) | (alphaValue << 24);
+    }
+
+    /**
      * Handle hover highlight in result view
      */
     private void handleHoverHighlight(int gridOriginX, int gridOriginY, int cellWidth, int cellHeight,
@@ -924,74 +1039,6 @@ public class ProcessingCore extends PApplet {
             rect(rectX, rectY, rectW, rectH);
             noStroke();
         }
-    }
-
-    /**
-     * Display a scaled glyph with the given pattern and colors
-     * Now with improved transparency support using alpha values
-     */
-    void displayScaledGlyph(long pattern, int screenX, int screenY, int pixelSize, int bgCol, int fgCol,
-            int alphaValue) {
-        noStroke();
-
-        // Prüfen, ob aufgrund des Alpha-Wertes der Hintergrund transparent gerendert
-        // werden soll
-        boolean useTransparentBackground = (alphaValue < 127);
-
-        for (int y = 0; y < GLYPH_HEIGHT; y++) {
-            for (int x = 0; x < GLYPH_WIDTH; x++) {
-                int bitIndex = y * GLYPH_WIDTH + x;
-                boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
-
-                // Set the fill color based on pattern and transparency setting
-                int pixelColor = -1;
-                boolean shouldDraw = true;
-
-                if (pixelOn) {
-                    // Für Vordergrundpixel verwenden wir immer die Vordergrundfarbe
-                    pixelColor = fgCol;
-
-                    // Bei voll transparenten Glyphen (Alpha = 0) zeichnen wir auch Vordergrund
-                    // nicht
-                    if (alphaValue == 0) {
-                        shouldDraw = false;
-                    }
-                } else {
-                    // Für Hintergrundpixel entscheiden wir basierend auf dem Alpha-Wert
-                    if (useTransparentBackground) {
-                        // Wenn Alpha < 127, zeichnen wir den Hintergrund nicht (transparent)
-                        shouldDraw = false;
-                    } else {
-                        // Ansonsten verwenden wir die Hintergrundfarbe
-                        pixelColor = bgCol;
-                    }
-                }
-
-                // Nur zeichnen, wenn das Pixel nicht transparent sein soll
-                if (shouldDraw) {
-                    // Wir passen den Alpha-Wert der Farbe entsprechend an (außer bei voller
-                    // Transparenz)
-                    if (alphaValue > 0 && alphaValue < 255) {
-                        // Alpha-Wert anwenden, aber nur wenn nicht bereits voll opak oder transparent
-                        pixelColor = adjustAlpha(pixelColor, alphaValue);
-                    }
-
-                    // if (pixelColor == -1) {
-                    //     continue; // Skip if no color is set
-                    // }
-                    fill(pixelColor);
-                    rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
-                }
-            }
-        }
-    }
-
-    /**
-     * Hilfsmethode zum Anpassen des Alpha-Wertes einer Farbe
-     */
-    private int adjustAlpha(int color, int alphaValue) {
-        // Wir behalten RGB bei und ersetzen nur den Alpha-Kanal
-        return (color & 0x00FFFFFF) | (alphaValue << 24);
     }
 
     // ========== USER INTERACTION ==========
@@ -1211,16 +1258,15 @@ public class ProcessingCore extends PApplet {
                 clickedGridX = gridClickX;
                 clickedGridY = gridClickY;
                 clickedGlyph = resultGrid[clickedGridY][gridClickX];
-                if (controlPanel != null) {
-                    controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, ColorPalette.getColors(),
-                            asciiPatterns);
-                }
                 Logger.println("Single cell clicked: X=" + clickedGridX + ", Y=" + clickedGridY);
                 // Ensure selection variables are reset if it was just a click
                 selectionStartX = selectionStartY = selectionEndX = selectionEndY = -1;
             }
         }
-
+        if (controlPanel != null) {
+            controlPanel.updateClickedInfo(clickedGridX, clickedGridY, clickedGlyph, ColorPalette.getColors(),
+                    asciiPatterns);
+        }
         // Reset flags for next interaction
         startedDragging = false;
         isSelecting = false; // Ensure this is false after release
@@ -1463,7 +1509,8 @@ public class ProcessingCore extends PApplet {
     public void replaceClickedGlyphColors(int fgIndex, int bgIndex) {
         if (clickedGlyph != null && clickedGridX >= 0 && clickedGridY >= 0) {
             // Validate indices (optional but recommended)
-            if (fgIndex < 0 || fgIndex >= ColorPalette.getColors().length || bgIndex < 0 || bgIndex >= ColorPalette.getColors().length) {
+            if (fgIndex < 0 || fgIndex >= ColorPalette.getColors().length || bgIndex < 0
+                    || bgIndex >= ColorPalette.getColors().length) {
                 Logger.println("Error: Invalid color indices provided (FG: " + fgIndex + ", BG: " + bgIndex
                         + "). Must be between 0 and 255.");
                 return;
@@ -1502,7 +1549,8 @@ public class ProcessingCore extends PApplet {
                         + " not found in font patterns. Cannot replace.");
                 return;
             }
-            if (sourceGlyph.fgIndex < 0 || sourceGlyph.fgIndex >= ColorPalette.getColors().length || sourceGlyph.bgIndex < 0
+            if (sourceGlyph.fgIndex < 0 || sourceGlyph.fgIndex >= ColorPalette.getColors().length
+                    || sourceGlyph.bgIndex < 0
                     || sourceGlyph.bgIndex >= ColorPalette.getColors().length) {
                 Logger.println("Error: Invalid color indices in source glyph (FG: " + sourceGlyph.fgIndex + ", BG: "
                         + sourceGlyph.bgIndex + ").");
@@ -1539,8 +1587,8 @@ public class ProcessingCore extends PApplet {
             ResultGlyph newGlyph = new ResultGlyph(
                     clickedGlyph.codePoint,
                     clickedGlyph.fgIndex,
-                    0); // 0 ist der Index für Transparenz, den wir in setupPalette definiert haben
-
+                    clickedGlyph.bgIndex);
+            newGlyph.setTranparent();
             // Erstelle und führe das Command aus
             GlyphChangeCommand cmd = new GlyphChangeCommand(this, clickedGridX, clickedGridY, newGlyph);
             commandManager.executeCommand(cmd);
@@ -1979,5 +2027,316 @@ public class ProcessingCore extends PApplet {
         }
 
         return new ResultGlyph(bestCodePoint, bestFgIndex, bestBgIndex);
+    }
+
+    /**
+     * Helper function to apply an action to each cell in the current selection
+     * 
+     * @param action A functional interface that takes x, y coordinates and performs
+     *               an action on that cell
+     */
+    private void applyToSelection(CellAction action) {
+        // Check if we have a valid selection
+        if (!hasSelection || selectionStartX < 0 || selectionStartY < 0 || selectionEndX < 0 || selectionEndY < 0) {
+            Logger.println("No valid selection to apply action to.");
+            return;
+        }
+
+        // Normalize the selection coordinates (ensure startX <= endX and startY <=
+        // endY)
+        int minX = min(selectionStartX, selectionEndX);
+        int maxX = max(selectionStartX, selectionEndX);
+        int minY = min(selectionStartY, selectionEndY);
+        int maxY = max(selectionStartY, selectionEndY);
+
+        // Track if any cells were modified
+        boolean anyModified = false;
+
+        // Apply the action to each cell in the selection
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                // Skip invalid coordinates
+                if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) {
+                    continue;
+                }
+
+                // Apply the action to this cell
+                if (action.apply(x, y)) {
+                    anyModified = true;
+                }
+            }
+        }
+
+        if (!anyModified) {
+            Logger.println("No cells were modified in the selection.");
+        }
+    }
+
+    /**
+     * Functional interface for cell actions
+     */
+    @FunctionalInterface
+    private interface CellAction {
+        /**
+         * Apply an action to the cell at the given coordinates
+         * 
+         * @param x The x coordinate
+         * @param y The y coordinate
+         * @return true if the cell was modified, false otherwise
+         */
+        boolean apply(int x, int y);
+    }
+
+    /**
+     * Swaps the foreground and background color indices for all glyphs in the
+     * selection.
+     */
+    public void flipSelectedGlyphColors() {
+        if (!hasSelection) {
+            // Fall back to single cell operation if no selection
+            flipClickedGlyphColors();
+            return;
+        }
+
+        final CommandManager.CompositeCommand compositeCommand = new CommandManager.CompositeCommand();
+
+        applyToSelection((x, y) -> {
+            ResultGlyph glyph = resultGrid[y][x];
+            if (glyph != null) {
+                ResultGlyph newGlyph = new ResultGlyph(
+                        glyph.codePoint,
+                        glyph.bgIndex, // Swap fg and bg
+                        glyph.fgIndex);
+
+                GlyphChangeCommand cmd = new GlyphChangeCommand(this, x, y, newGlyph);
+                compositeCommand.addCommand(cmd);
+                return true;
+            }
+            return false;
+        });
+
+        if (!compositeCommand.isEmpty()) {
+            commandManager.executeCommand(compositeCommand);
+            Logger.println("Flipped colors for all glyphs in selection.");
+        }
+    }
+
+    /**
+     * Replaces the character (codepoint) for all glyphs in the selection.
+     * 
+     * @param newChar The new character to use
+     */
+    public void replaceSelectedGlyph(char newChar) {
+        if (!hasSelection) {
+            // Fall back to single cell operation if no selection
+            replaceClickedGlyph(newChar);
+            return;
+        }
+
+        int newCodePoint = (int) newChar;
+
+        // Check if the new codepoint has a pattern available
+        if (!asciiPatterns.containsKey(newCodePoint)) {
+            Logger.println("Error: Character '" + newChar + "' (Codepoint: " + newCodePoint
+                    + ") not found in font patterns. Cannot replace.");
+            return;
+        }
+
+        final CommandManager.CompositeCommand compositeCommand = new CommandManager.CompositeCommand();
+
+        applyToSelection((x, y) -> {
+            ResultGlyph glyph = resultGrid[y][x];
+            if (glyph != null) {
+                ResultGlyph newGlyph = new ResultGlyph(
+                        newCodePoint,
+                        glyph.fgIndex,
+                        glyph.bgIndex);
+
+                GlyphChangeCommand cmd = new GlyphChangeCommand(this, x, y, newGlyph);
+                compositeCommand.addCommand(cmd);
+                return true;
+            }
+            return false;
+        });
+
+        if (!compositeCommand.isEmpty()) {
+            commandManager.executeCommand(compositeCommand);
+            Logger.println("Replaced character for all glyphs in selection with '" + newChar + "' (Codepoint: "
+                    + newCodePoint + ")");
+        }
+    }
+
+    /**
+     * Replaces the foreground and background colors for all glyphs in the
+     * selection.
+     * 
+     * @param fgIndex The new foreground color index
+     * @param bgIndex The new background color index
+     */
+    public void replaceSelectedGlyphColors(int fgIndex, int bgIndex) {
+        if (!hasSelection) {
+            // Fall back to single cell operation if no selection
+            replaceClickedGlyphColors(fgIndex, bgIndex);
+            return;
+        }
+
+        // Validate indices
+        if (fgIndex < 0 || fgIndex >= ColorPalette.getColors().length ||
+                bgIndex < 0 || bgIndex >= ColorPalette.getColors().length) {
+            Logger.println("Error: Invalid color indices provided (FG: " + fgIndex + ", BG: " + bgIndex
+                    + "). Must be between 0 and 255.");
+            return;
+        }
+
+        final CommandManager.CompositeCommand compositeCommand = new CommandManager.CompositeCommand();
+
+        applyToSelection((x, y) -> {
+            ResultGlyph glyph = resultGrid[y][x];
+            if (glyph != null) {
+                ResultGlyph newGlyph = new ResultGlyph(
+                        glyph.codePoint,
+                        fgIndex,
+                        bgIndex);
+
+                GlyphChangeCommand cmd = new GlyphChangeCommand(this, x, y, newGlyph);
+                compositeCommand.addCommand(cmd);
+                return true;
+            }
+            return false;
+        });
+
+        if (!compositeCommand.isEmpty()) {
+            commandManager.executeCommand(compositeCommand);
+            Logger.println("Replaced colors for all glyphs in selection with FG=" + fgIndex + ", BG=" + bgIndex);
+        }
+    }
+
+    /**
+     * Replaces each glyph in the selection with the provided glyph data
+     * 
+     * @param sourceGlyph The glyph to use as a template
+     */
+    public void replaceSelectedGlyphsWithGlyph(ResultGlyph sourceGlyph) {
+        if (!hasSelection) {
+            // Fall back to single cell operation if no selection
+            replaceClickedGlyphWithGlyph(sourceGlyph);
+            return;
+        }
+
+        if (sourceGlyph == null) {
+            Logger.println("Source glyph data is null.");
+            return;
+        }
+
+        // Validate source glyph data
+        if (!asciiPatterns.containsKey(sourceGlyph.codePoint)) {
+            Logger.println("Error: Source glyph codepoint " + sourceGlyph.codePoint
+                    + " not found in font patterns. Cannot replace.");
+            return;
+        }
+
+        if (sourceGlyph.fgIndex < 0 || sourceGlyph.fgIndex >= ColorPalette.getColors().length ||
+                sourceGlyph.bgIndex < 0 || sourceGlyph.bgIndex >= ColorPalette.getColors().length) {
+            Logger.println("Error: Invalid color indices in source glyph (FG: " + sourceGlyph.fgIndex +
+                    ", BG: " + sourceGlyph.bgIndex + ").");
+            return;
+        }
+
+        final CommandManager.CompositeCommand compositeCommand = new CommandManager.CompositeCommand();
+
+        applyToSelection((x, y) -> {
+            ResultGlyph newGlyph = new ResultGlyph(
+                    sourceGlyph.codePoint,
+                    sourceGlyph.fgIndex,
+                    sourceGlyph.bgIndex);
+
+            GlyphChangeCommand cmd = new GlyphChangeCommand(this, x, y, newGlyph);
+            compositeCommand.addCommand(cmd);
+            return true;
+        });
+
+        if (!compositeCommand.isEmpty()) {
+            commandManager.executeCommand(compositeCommand);
+            Logger.println("Replaced all glyphs in selection with source glyph data.");
+        }
+    }
+
+    /**
+     * Sets the background of all glyphs in the selection to transparent
+     */
+    public void setTransparentBackgroundForSelection() {
+        if (!hasSelection) {
+            // Fall back to single cell operation if no selection
+            setTransparentBackground();
+            return;
+        }
+
+        final CommandManager.CompositeCommand compositeCommand = new CommandManager.CompositeCommand();
+
+        applyToSelection((x, y) -> {
+            ResultGlyph glyph = resultGrid[y][x];
+            if (glyph != null) {
+                ResultGlyph newGlyph = new ResultGlyph(
+                        glyph.codePoint,
+                        glyph.fgIndex,
+                        0); // 0 is transparent
+                newGlyph.setTranparent(); // Set the glyph as transparent
+                GlyphChangeCommand cmd = new GlyphChangeCommand(this, x, y, newGlyph);
+                compositeCommand.addCommand(cmd);
+                return true;
+            }
+            return false;
+        });
+
+        if (!compositeCommand.isEmpty()) {
+            commandManager.executeCommand(compositeCommand);
+            Logger.println("Set transparent background for all glyphs in selection.");
+        }
+    }
+
+    /**
+     * Attempts to find alternative glyphs for all cells in the selection
+     */
+    public void invertGlyphPatternForSelection() {
+        if (!hasSelection) {
+            // Fall back to single cell operation if no selection
+            invertGlyphPattern();
+            return;
+        }
+
+        final CommandManager.CompositeCommand compositeCommand = new CommandManager.CompositeCommand();
+        final int[] changedGlyphs = new int[1]; // Use array to track count from lambda
+
+        applyToSelection((x, y) -> {
+            ResultGlyph glyph = resultGrid[y][x];
+            if (glyph == null)
+                return false;
+
+            // Extract the original pixel block
+            int[] blockPixels = extractBlockPixels(x, y);
+            if (blockPixels == null)
+                return false;
+
+            // Create exclusion set for the current glyph
+            Set<Integer> excludedCodepoints = new HashSet<>();
+            excludedCodepoints.add(glyph.codePoint);
+
+            // Try to find a better match excluding the current glyph
+            ResultGlyph newMatch = findBestMatchExcluding(blockPixels, excludedCodepoints);
+            if (newMatch != null) {
+                GlyphChangeCommand cmd = new GlyphChangeCommand(this, x, y, newMatch);
+                compositeCommand.addCommand(cmd);
+                changedGlyphs[0]++;
+                return true;
+            }
+            return false;
+        });
+
+        if (!compositeCommand.isEmpty()) {
+            commandManager.executeCommand(compositeCommand);
+            Logger.println("Found alternative glyphs for " + changedGlyphs[0] + " cells in selection.");
+        } else {
+            Logger.println("No alternative glyphs found for any cell in the selection.");
+        }
     }
 }

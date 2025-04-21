@@ -26,30 +26,16 @@ public class ResultGlyph {
     }
 
     /**
-     * Check if the background of this glyph is transparent
-     * 
-     * @return true if background uses the transparent color index (0)
-     */
-    public boolean hasTransparentBackground() {
-        return bgIndex == 0;
-    }
-
-    /**
-     * Check if the foreground of this glyph is transparent
-     * 
-     * @return true if foreground uses the transparent color index (0)
-     */
-    public boolean hasTransparentForeground() {
-        return fgIndex == 0;
-    }
-
-    /**
      * Check if this glyph is generally transparent (low alpha)
      * 
      * @return true if alpha value is below 128
      */
     public boolean isTransparent() {
         return alpha < 128;
+    }
+
+    public void setTranparent() {
+        this.alpha = 0;
     }
 
     /**

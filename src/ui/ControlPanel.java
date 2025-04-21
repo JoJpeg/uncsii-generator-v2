@@ -1,6 +1,7 @@
 package ui;
 
 import java.awt.BorderLayout;
+import java.awt.Checkbox;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -64,6 +65,8 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JButton flipGlyphButton; // Hinzufügen des Buttons
     private JButton centerImageButton; // Füge einen Button zum Zentrieren des Bildes hinzu
     private JButton transparentBgButton; // Button für transparenten Hintergrund
+    private Checkbox prefererWhiteAsForegroundCheckbox; // Checkbox für hellen Vordergrund
+    private Checkbox usePreferences;
 
     // Selection Info Labels
     private JLabel hoverXPosLabel;
@@ -71,12 +74,15 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JLabel hoverCodepointLabel;
     private JLabel hoverFgIndexLabel;
     private JLabel hoverBgIndexLabel;
+    private JLabel hoverAlphaLabel; // New label for hover alpha value
 
     private JLabel clickedXPosLabel;
     private JLabel clickedYPosLabel;
     private JLabel clickedCodepointLabel;
     private JLabel clickedFgIndexLabel;
     private JLabel clickedBgIndexLabel;
+
+    private JLabel clickedAlphaLabel; // New label for clicked alpha value
 
     // Selection Area Labels
     private JLabel selectionXPosLabel;
@@ -91,6 +97,10 @@ public class ControlPanel extends JFrame implements ActionListener {
     private ResultGlyph internalClipboardGlyph = null; // For full glyph copy/paste
     private int internalClipboardFgIndex = -1; // For color-only copy/paste
     private int internalClipboardBgIndex = -1; // For color-only copy/paste
+
+    // Add this with other instance variables in the ProcessingCore class
+    public static boolean preferLightForeground = true; // true = light colors as FG, false = dark colors as FG
+    public static boolean usePreference = false;
 
     // Singleton-Instanz
     private static ControlPanel Instance;
@@ -236,6 +246,29 @@ public class ControlPanel extends JFrame implements ActionListener {
         redoButton.addActionListener(this);
         buttonPanel.add(redoButton);
 
+        JPanel prefPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+
+        usePreferences = new Checkbox("Use Preferences");
+        usePreferences.setState(usePreference);
+        usePreferences.addItemListener(e -> {
+            usePreference = usePreferences.getState();
+            prefererWhiteAsForegroundCheckbox.setEnabled(usePreference);
+
+            Logger.println("Use Preferences: " + usePreference);
+        });
+
+        prefererWhiteAsForegroundCheckbox = new Checkbox("Prefer Light Colors as Foreground");
+        prefererWhiteAsForegroundCheckbox.setState(preferLightForeground);
+        prefererWhiteAsForegroundCheckbox.addItemListener(e -> {
+            preferLightForeground = prefererWhiteAsForegroundCheckbox.getState();
+            Logger.println("Prefer Light Colors as Foreground: " + preferLightForeground);
+        });
+        prefererWhiteAsForegroundCheckbox.setEnabled(usePreference);
+
+        prefPanel.add(usePreferences);
+        prefPanel.add(prefererWhiteAsForegroundCheckbox);
+        buttonPanel.add(prefPanel);
+
         topPanel.add(buttonPanel);
         topPanel.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
 
@@ -266,7 +299,7 @@ public class ControlPanel extends JFrame implements ActionListener {
         selectionInfoContainer.setBorder(BorderFactory.createTitledBorder("Selection Info"));
 
         // --- Selection Table Panel (GridLayout) ---
-        JPanel selectionTablePanel = new JPanel(new GridLayout(5, 3, 8, 2));
+        JPanel selectionTablePanel = new JPanel(new GridLayout(6, 3, 8, 2));
 
         // Row 1: X Coordinate
         selectionTablePanel.add(new JLabel("X:"));
@@ -302,6 +335,13 @@ public class ControlPanel extends JFrame implements ActionListener {
         selectionTablePanel.add(clickedBgIndexLabel);
         hoverBgIndexLabel = new JLabel("-", SwingConstants.CENTER);
         selectionTablePanel.add(hoverBgIndexLabel);
+
+        // Row 5: Alpha
+        selectionTablePanel.add(new JLabel("Alpha:"));
+        clickedAlphaLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(clickedAlphaLabel);
+        hoverAlphaLabel = new JLabel("-", SwingConstants.CENTER);
+        selectionTablePanel.add(hoverAlphaLabel);
 
         selectionInfoContainer.add(selectionTablePanel); // Add table to container
         selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
@@ -440,6 +480,19 @@ public class ControlPanel extends JFrame implements ActionListener {
         return state;
     }
 
+    /**
+     * Determines if a selection is active and should be used for operations
+     * instead of a single clicked cell.
+     * 
+     * @return true if a selection area exists and should be used
+     */
+    private boolean useSelectionForActions() {
+        // Check if Processing instance has a valid selection
+        return p.hasSelection &&
+                p.selectionStartX >= 0 && p.selectionStartY >= 0 &&
+                p.selectionEndX >= 0 && p.selectionEndY >= 0;
+    }
+
     @Override
     public void actionPerformed(ActionEvent e) {
         try {
@@ -469,14 +522,27 @@ public class ControlPanel extends JFrame implements ActionListener {
                 copyInternalColors();
             else if (source == pasteColorsButton)
                 pasteInternalColors();
-            else if (source == flipColorsButton) // Handle new button click
-                p.flipClickedGlyphColors(); // Call the new method in ProcessingCore
-            else if (source == flipGlyphButton) // Handle flip glyph button click
-                p.invertGlyphPattern(); // Call the method in ProcessingCore
-            else if (source == centerImageButton) // Handle center image button click
+            else if (source == flipColorsButton) { // Handle flip colors button click
+                if (useSelectionForActions()) {
+                    p.flipSelectedGlyphColors(); // Apply to selection
+                } else {
+                    p.flipClickedGlyphColors(); // Apply to single cell
+                }
+            } else if (source == flipGlyphButton) { // Handle flip glyph button click
+                if (useSelectionForActions()) {
+                    p.invertGlyphPatternForSelection(); // Apply to selection
+                } else {
+                    p.invertGlyphPattern(); // Apply to single cell
+                }
+            } else if (source == centerImageButton) // Handle center image button click
                 p.centerImage(); // Call the method in ProcessingCore
-            else if (source == transparentBgButton) // Handle transparent background button click
-                p.setTransparentBackground(); // Call the method in ProcessingCore
+            else if (source == transparentBgButton) { // Handle transparent background button click
+                if (useSelectionForActions()) {
+                    p.setTransparentBackgroundForSelection(); // Apply to selection
+                } else {
+                    p.setTransparentBackground(); // Apply to single cell
+                }
+            }
 
         } catch (Exception ex) {
             Logger.println("Fehler bei Button-Aktion: " + ex.getMessage());
@@ -693,7 +759,10 @@ public class ControlPanel extends JFrame implements ActionListener {
      * content.
      */
     private void updatePasteButtonStates() {
-        boolean glyphSelected = currentClickedGlyph != null;
+        // Eine Zelle ist "ausgewählt", wenn entweder eine einzelne Zelle angeklickt
+        // wurde
+        // oder wenn eine gültige Selektion vorhanden ist
+        boolean glyphSelected = currentClickedGlyph != null || useSelectionForActions();
         boolean internalGlyphAvailable = internalClipboardGlyph != null;
         boolean internalColorsAvailable = internalClipboardFgIndex != -1 && internalClipboardBgIndex != -1;
 
@@ -729,6 +798,14 @@ public class ControlPanel extends JFrame implements ActionListener {
                     .setText(String.format("%s%d (U+%04X)", charDisplay, glyph.codePoint, glyph.codePoint));
             clickedFgIndexLabel.setText(String.valueOf(glyph.fgIndex));
             clickedBgIndexLabel.setText(String.valueOf(glyph.bgIndex));
+
+            // Add alpha value display - extract alpha from the color if available
+            if (colorPalette != null && glyph.bgIndex >= 0 && glyph.bgIndex < colorPalette.length) {
+                int alpha = (colorPalette[glyph.bgIndex] >> 24) & 0xFF;
+                clickedAlphaLabel.setText(String.valueOf(alpha));
+            } else {
+                clickedAlphaLabel.setText("-");
+            }
         } else {
             clickedXPosLabel.setText("-");
             clickedYPosLabel.setText("-");
@@ -766,12 +843,14 @@ public class ControlPanel extends JFrame implements ActionListener {
             hoverCodepointLabel.setText(String.format("U+%04X", glyph.codePoint));
             hoverFgIndexLabel.setText(String.valueOf(glyph.fgIndex));
             hoverBgIndexLabel.setText(String.valueOf(glyph.bgIndex));
+            hoverAlphaLabel.setText(String.valueOf(glyph.alpha)); // Assuming alpha is part of ResultGlyph
         } else {
             hoverXPosLabel.setText("-");
             hoverYPosLabel.setText("-");
             hoverCodepointLabel.setText("-");
             hoverFgIndexLabel.setText("-");
             hoverBgIndexLabel.setText("-");
+            hoverAlphaLabel.setText("-");
         }
     }
 
