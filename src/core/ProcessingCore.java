@@ -528,14 +528,20 @@ public class ProcessingCore extends PApplet {
             // Calculate error for both color assignments
             double errorA = calculateMatchError(currentPattern, color1Index, color2Index, blockPixels);
             double errorB = calculateMatchError(currentPattern, color2Index, color1Index, blockPixels);
+            double bestMatchError = Math.min(errorA, errorB);
+            double errorDelta = Math.max(errorA, errorB) - Math.min(errorA, errorB);
 
             int brightness1 = (int) calculateBrightness(ColorPalette.getColors()[color1Index]);
             int brightness2 = (int) calculateBrightness(ColorPalette.getColors()[color2Index]);
 
             boolean usePreference = ControlPanel.usePreference;
+            boolean useThreshold = ControlPanel.algoPreference == ControlPanel.AlgoPreference.Threshold_Light ||
+                    ControlPanel.algoPreference == ControlPanel.AlgoPreference.Threshold_Dark;
+            boolean preferBrightAsForeground = ControlPanel.algoPreference == ControlPanel.AlgoPreference.Light ||
+                    ControlPanel.algoPreference == ControlPanel.AlgoPreference.Threshold_Light;
             boolean appliesToPreferredColor = true;
+
             if (usePreference) {
-                boolean preferBrightAsForeground = ControlPanel.preferLightForeground;
                 if (brightness1 > brightness2) {
                     appliesToPreferredColor = preferBrightAsForeground;
                 } else {
@@ -544,7 +550,7 @@ public class ProcessingCore extends PApplet {
             }
 
             // Update best match
-            if (usePreference) {
+            if (usePreference && !useThreshold) {
                 if (errorA < minError && appliesToPreferredColor) {
                     minError = errorA;
                     bestCodePoint = currentCodePoint;
@@ -557,6 +563,26 @@ public class ProcessingCore extends PApplet {
                     bestCodePoint = currentCodePoint;
                     bestFgIndex = color2Index;
                     bestBgIndex = color1Index;
+                }
+            } else if (usePreference && useThreshold) {
+                appliesToPreferredColor = appliesToPreferredColor && errorDelta < ControlPanel.algoDeltaThreshold;
+               
+                if (errorA < minError) {
+                    if (appliesToPreferredColor) {
+                        minError = errorA;
+                        bestCodePoint = currentCodePoint;
+                        bestFgIndex = color1Index;
+                        bestBgIndex = color2Index;
+                    }
+                }
+
+                if (errorB < minError) {
+                    if (appliesToPreferredColor) {
+                        minError = errorB;
+                        bestCodePoint = currentCodePoint;
+                        bestFgIndex = color2Index;
+                        bestBgIndex = color1Index;
+                    }
                 }
             } else {
                 if (errorA < minError) {

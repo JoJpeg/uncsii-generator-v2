@@ -80,6 +80,8 @@ Download the .jar from the releases or use the one in the root folder. It should
 
 ## Todo
 
+- [ ] reprocess only selection (for algo mode)
+- [ ] a "show only chars" mode
 - [ ] Make Shorcuts work again
 - [ ] Add batch processing of multiple images
 - [ ] Write a .unc2 importer 

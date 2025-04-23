@@ -28,6 +28,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
@@ -65,8 +66,6 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JButton flipGlyphButton; // Hinzufügen des Buttons
     private JButton centerImageButton; // Füge einen Button zum Zentrieren des Bildes hinzu
     private JButton transparentBgButton; // Button für transparenten Hintergrund
-    private Checkbox prefererWhiteAsForegroundCheckbox; // Checkbox für hellen Vordergrund
-    private Checkbox usePreferences;
 
     // Selection Info Labels
     private JLabel hoverXPosLabel;
@@ -110,9 +109,20 @@ public class ControlPanel extends JFrame implements ActionListener {
         EDIT,
     }
 
+    public enum AlgoPreference {
+        Light,
+        Dark,
+        Threshold_Light,
+        Threshold_Dark,
+        None,
+    }
+
+    public static AlgoPreference algoPreference = AlgoPreference.None; // Default to NONE
+    public static double algoDeltaThreshold = 100; // Default threshold value
     PanelState state = PanelState.SETUP;
 
     /**
+     * ––
      * Innere Klasse zum Zeichnen des ausgewählten Glyphs.
      */
     private class GlyphPreviewPanel extends JPanel {
@@ -248,25 +258,73 @@ public class ControlPanel extends JFrame implements ActionListener {
 
         JPanel prefPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
-        usePreferences = new Checkbox("Use Preferences");
-        usePreferences.setState(usePreference);
-        usePreferences.addItemListener(e -> {
-            usePreference = usePreferences.getState();
-            prefererWhiteAsForegroundCheckbox.setEnabled(usePreference);
+        JSpinner algoDeltaThresholdSpinner = new JSpinner();
+        algoDeltaThresholdSpinner.setName("Threshold");
+        algoDeltaThresholdSpinner.setToolTipText("The higher the threshold, the easier it is ");
+        algoDeltaThresholdSpinner.setPreferredSize(new Dimension(100, 30));
+        algoDeltaThresholdSpinner.setValue(algoDeltaThreshold);
+        algoDeltaThresholdSpinner.addChangeListener(e -> {
+            int value = (int) algoDeltaThresholdSpinner.getValue();
+            algoDeltaThreshold = (double) value;
+            Logger.println("Algo Delta Threshold: " + algoDeltaThreshold);
+        });
+        algoDeltaThresholdSpinner.setEnabled(algoPreference == AlgoPreference.Threshold_Dark ||
+                algoPreference == AlgoPreference.Threshold_Light);
 
-            Logger.println("Use Preferences: " + usePreference);
+        JComboBox<String> algoPreferenceSelector = new JComboBox<>(
+                new String[] { "Light", "Dark", "Threshold_Light", "Threshold_Dark", "None" });
+        algoPreferenceSelector.setSelectedItem(algoPreference.toString());
+
+        algoPreferenceSelector.addActionListener(e -> {
+            String selected = (String) algoPreferenceSelector.getSelectedItem();
+            if (selected != null) {
+                algoPreference = AlgoPreference.valueOf(selected);
+
+                if (algoPreference == AlgoPreference.Light) {
+                    usePreference = true;
+                    preferLightForeground = true;
+                } else if (algoPreference == AlgoPreference.Dark) {
+                    usePreference = true;
+                    preferLightForeground = false;
+                } else if (algoPreference == AlgoPreference.Threshold_Dark) {
+                    usePreference = true;
+                    preferLightForeground = false;
+                } else if (algoPreference == AlgoPreference.Threshold_Light) {
+                    usePreference = true;
+                    preferLightForeground = true;
+                } else if (algoPreference == AlgoPreference.None) {
+                    usePreference = false;
+                }
+                algoDeltaThresholdSpinner.setEnabled(algoPreference == AlgoPreference.Threshold_Dark ||
+                        algoPreference == AlgoPreference.Threshold_Light);
+                Logger.println("Algo Preference: " + algoPreference);
+            }
         });
 
-        prefererWhiteAsForegroundCheckbox = new Checkbox("Prefer Light Colors as Foreground");
-        prefererWhiteAsForegroundCheckbox.setState(preferLightForeground);
-        prefererWhiteAsForegroundCheckbox.addItemListener(e -> {
-            preferLightForeground = prefererWhiteAsForegroundCheckbox.getState();
-            Logger.println("Prefer Light Colors as Foreground: " + preferLightForeground);
-        });
-        prefererWhiteAsForegroundCheckbox.setEnabled(usePreference);
+        prefPanel.add(new JLabel("Algo Preference:"));
+        prefPanel.add(algoPreferenceSelector);
+        prefPanel.add(algoDeltaThresholdSpinner);
+        // usePreferences = new Checkbox("Use Preferences");
+        // usePreferences.setState(usePreference);
+        // usePreferences.addItemListener(e -> {
+        // usePreference = usePreferences.getState();
+        // prefererWhiteAsForegroundCheckbox.setEnabled(usePreference);
 
-        prefPanel.add(usePreferences);
-        prefPanel.add(prefererWhiteAsForegroundCheckbox);
+        // Logger.println("Use Preferences: " + usePreference);
+        // });
+
+        // prefererWhiteAsForegroundCheckbox = new Checkbox("Prefer Light Colors as
+        // Foreground");
+        // prefererWhiteAsForegroundCheckbox.setState(preferLightForeground);
+        // prefererWhiteAsForegroundCheckbox.addItemListener(e -> {
+        // preferLightForeground = prefererWhiteAsForegroundCheckbox.getState();
+        // Logger.println("Prefer Light Colors as Foreground: " +
+        // preferLightForeground);
+        // });
+        // prefererWhiteAsForegroundCheckbox.setEnabled(usePreference);
+
+        // prefPanel.add(usePreferences);
+        // prefPanel.add(prefererWhiteAsForegroundCheckbox);
         buttonPanel.add(prefPanel);
 
         topPanel.add(buttonPanel);
