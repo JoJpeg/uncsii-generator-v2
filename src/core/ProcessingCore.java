@@ -566,7 +566,7 @@ public class ProcessingCore extends PApplet {
                 }
             } else if (usePreference && useThreshold) {
                 appliesToPreferredColor = appliesToPreferredColor && errorDelta < ControlPanel.algoDeltaThreshold;
-               
+
                 if (errorA < minError) {
                     if (appliesToPreferredColor) {
                         minError = errorA;
@@ -1719,14 +1719,68 @@ public class ProcessingCore extends PApplet {
      */
     private void reloadCurrentImage() {
         if (imagePath != null && !imagePath.isEmpty()) {
-            fill(128);
-            textSize(32);
-            textAlign(CENTER, CENTER);
-            text("Reloading...", width / 2, height / 2);
-            loadAndProcessImage(imagePath);
+            // If we have a selection, only reprocess that part
+            if (hasSelection && resultGrid != null && inputImage != null) {
+                Logger.println("Reprocessing selected area...");
+                fill(128);
+                textSize(32);
+                textAlign(CENTER, CENTER);
+                text("Reprocessing selection...", width / 2, height / 2);
+                reprocessSelectedArea();
+            } else {
+                // Otherwise reload the entire image
+                fill(128);
+                textSize(32);
+                textAlign(CENTER, CENTER);
+                text("Reloading...", width / 2, height / 2);
+                loadAndProcessImage(imagePath);
+            }
         } else {
             Logger.println("No image path set to reload.");
         }
+    }
+
+    private void reprocessSelectedArea() {
+        if (!hasSelection || inputImage == null || resultGrid == null) {
+            Logger.println("Cannot reprocess: No selection or image not loaded.");
+            return;
+        }
+        // Normalize selection coordinates
+        int minX = min(selectionStartX, selectionEndX);
+        int maxX = max(selectionStartX, selectionEndX);
+        int minY = min(selectionStartY, selectionEndY);
+        int maxY = max(selectionStartY, selectionEndY);
+
+        Logger.println("Reprocessing area from (" + minX + "," + minY + ") to (" + maxX + "," + maxY + ")");
+
+        long startTime = System.currentTimeMillis();
+
+        // Process only the selected blocks
+        for (int gridY = minY; gridY <= maxY; gridY++) {
+            for (int gridX = minX; gridX <= maxX; gridX++) {
+                int[] blockPixels = extractBlockPixels(gridX, gridY);
+
+                // Try to find an exact match first
+                ResultGlyph exactMatchResult = findExactMatch(blockPixels);
+                if (exactMatchResult != null) {
+                    resultGrid[gridY][gridX] = exactMatchResult;
+                    continue;
+                }
+
+                // Fall back to approximation if no exact match
+                resultGrid[gridY][gridX] = findApproximateMatch(blockPixels);
+            }
+
+            // Show progress for large selections
+            if (maxY - minY > 20 && ((gridY - minY + 1) % 10 == 0 || gridY == maxY)) {
+                int progress = (int) (((gridY - minY + 1) * 100.0) / (maxY - minY + 1));
+                Logger.println("Reprocessing: " + progress + "% complete");
+            }
+        }
+
+        long endTime = System.currentTimeMillis();
+        Logger.println("Selection reprocessing finished in " + (endTime - startTime) + " ms.");
+
     }
 
     /**
