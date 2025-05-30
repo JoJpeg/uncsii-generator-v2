@@ -9,6 +9,7 @@ import java.util.Set;
 import logger.Logger;
 import processing.core.PApplet;
 import processing.core.PFont;
+import processing.core.PGraphics;
 import processing.core.PImage;
 import processing.event.KeyEvent;
 import processing.event.MouseEvent;
@@ -159,7 +160,7 @@ public class ProcessingCore extends PApplet {
 
     @Override
     public void draw() {
-        background(255, 0, 0);
+        image(getCheckerBoardImage(), 0, 0, width, height);
 
         // When image is processing, show a loading indicator
         if (isImageProcessing) {
@@ -2372,6 +2373,32 @@ public class ProcessingCore extends PApplet {
             commandManager.executeCommand(compositeCommand);
             Logger.println("Set transparent background for all glyphs in selection.");
         }
+    }
+
+    PImage checkerBoardImage;
+
+    public PImage getCheckerBoardImage() {
+        if (checkerBoardImage != null) {
+            return checkerBoardImage;
+        }
+        PGraphics checker = createGraphics(width, height);
+        checker.beginDraw();
+        int checkerSize = 10;
+
+        for (int y = 0; y < height; y += checkerSize) {
+            for (int x = 0; x < width; x += checkerSize) {
+                if ((x / checkerSize + y / checkerSize) % 2 == 0) {
+                    checker.fill(80);
+                } else {
+                    checker.fill(40);
+                }
+                checker.rect(x, y, checkerSize, checkerSize);
+            }
+        }
+
+        checker.endDraw();
+        checkerBoardImage = checker.get();
+        return checkerBoardImage;
     }
 
     /**
