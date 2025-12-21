@@ -51,7 +51,7 @@ public class ProcessingCore extends PApplet {
     public static final int DEFAULT_DISPLAY_SCALE = 2;
 
     // File paths
-    public static final String DEFAULT_FONT_PATH = "/Users/jonaseschner/IdeaProjects/unscii-generator/src/resources/unscii-8.ttf";
+    public static final String DEFAULT_FONT_PATH = "../resources/unscii-8.ttf";
     public static final String DEFAULT_OUTPUT_PATH = "output.usc";
 
     // Image conversion states
@@ -154,7 +154,6 @@ public class ProcessingCore extends PApplet {
         new ColorPalette(this);
         // Setup application
         // ColorPalette.getColors() = ColorPalette.getColors().getColors();
-        initializeDefaultPaths();
         generateFontPatterns();
     }
 
@@ -200,19 +199,7 @@ public class ProcessingCore extends PApplet {
         }
     }
 
-    /**
-     * Initialize default file paths
-     */
-    private void initializeDefaultPaths() {
-        // Example image paths - would be better to make this configurable
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/Ambient Mean/Xorm/Hypno Flute/renders/visual ready/16_9/hypno in flower.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/Ambient Mean/Xorm/Hypno Flute/renders/visual ready/16_9/crow spottet.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/Ambient Mean/Xorm/Hypno Flute/renders/visual ready/16_9/xorm logo.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/JoJpeg/Fun Stuff/Dirigent/Dirigent Xorm Intro 3.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/JoJpeg/Fun Stuff/Dirigent/Dirigent Font Test.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/JoJpeg/Fun Stuff/Dirigent/Dirigent Xorm Screen 1.png";
-        outputPath = "Dirigent Xorm Screen 1.usc";
-    }
+
 
     /**
      * Generate font patterns for ASCII art conversion
