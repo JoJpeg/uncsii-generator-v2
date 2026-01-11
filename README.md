@@ -2,7 +2,7 @@
 
 A Java application for converting images into ASCII art using the awesome [unscii](https://github.com/viznut/unscii) font (8x8 only) and the xterm-256 color palette, built with Processing and Swing. The pattern matching is exact enough that you can design actual things like UI with it. I am using it for my personal terminal based software thats running on a Pi.
 
-This code is really mainly build by me telling an AI what I want. I was making minor manual fixups. Thats why some things are still German, the AI was switching between languages. Also this thing is really tailored to my needs, probably not verrrry useful for anybody but feel free to fork and send pull requests. Would be interesting to see where this goes when adding support for more fonts. The app is version 2 because AI destroyed my version 1 before I saved it. All Hail the new Gods. 
+This code is really mainly vibe coded. I was making minor manual fixups. Thats why some things are still German, the AI was switching between languages. Also this thing is really tailored to my personal needs, probably not verrrry useful for anybody but feel free to fork and send pull requests. Would be interesting to see where this goes when adding support for more fonts. The app is version 2 because AI destroyed my version 1 before I saved it. All Hail the new Gods. 
 
 ![Screenshot of UNSCII Generator V2](readme-data/animated.png)
 This example shows how I am using the generators capabilites to find the exact match to design my TextBased Ui. Make sure you carefully place your symbols so that they match the 8x8 grid of the [unscii](https://github.com/viznut/unscii) Font. This way you can really build Text UI by just painting an image and throwing it into the generator.
@@ -80,6 +80,7 @@ Download the .jar from the releases or use the one in the root folder. It should
 
 ## Todo
 
+- [ ] clean up UI
 - [x] reprocess only selection (for algo mode)
 - [ ] a "show only chars" mode
 - [x] Make Shorcuts work again
@@ -87,3 +88,4 @@ Download the .jar from the releases or use the one in the root folder. It should
 - [ ] Write a .unc2 importer 
 - [ ] add some basic image editing to change contrasts, hue and saturation and add noise
 - [ ] export the result as a png for casual use
+
