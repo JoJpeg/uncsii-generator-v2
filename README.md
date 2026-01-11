@@ -74,9 +74,14 @@ Download the .jar from the releases or use the one in the root folder. It should
 
 ## Known Issues
 
-* shortcuts other than the cmd+... are not working
-* runs only on 50x30 glyphs because thats what i needed it to do
+* runs only on 50x30 glyphs because thats what i needed it to do 
 
+
+## Change Log
+
+### v2.02
+ - Control Panel is nicer
+ - Shortcuts work now when the image window is Active
 
 ## Todo
 
@@ -88,4 +93,8 @@ Download the .jar from the releases or use the one in the root folder. It should
 - [ ] Write a .unc2 importer 
 - [ ] add some basic image editing to change contrasts, hue and saturation and add noise
 - [ ] export the result as a png for casual use
+- [ ] add a way to change the WxH of the generated images
+
+
+
 
