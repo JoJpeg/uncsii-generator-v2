@@ -1,14 +1,16 @@
 package ui;
 
 import java.awt.BorderLayout;
-import java.awt.Checkbox;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Insets;
 import java.awt.TextArea;
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
@@ -29,6 +31,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JSplitPane;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
@@ -62,46 +65,40 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JButton pasteGlyphIntButton;
     private JButton copyColorsButton;
     private JButton pasteColorsButton;
-    private JButton flipColorsButton; // New Button
-    private JButton flipGlyphButton; // Hinzufügen des Buttons
-    private JButton centerImageButton; // Füge einen Button zum Zentrieren des Bildes hinzu
-    private JButton transparentBgButton; // Button für transparenten Hintergrund
+    private JButton flipColorsButton;
+    private JButton flipGlyphButton;
+    private JButton centerImageButton;
+    private JButton transparentBgButton;
 
     // Selection Info Labels
-    private JLabel hoverXPosLabel;
-    private JLabel hoverYPosLabel;
+    private JLabel hoverPosLabel;
     private JLabel hoverCodepointLabel;
     private JLabel hoverFgIndexLabel;
     private JLabel hoverBgIndexLabel;
-    private JLabel hoverAlphaLabel; // New label for hover alpha value
+    private JLabel hoverAlphaLabel;
 
-    private JLabel clickedXPosLabel;
-    private JLabel clickedYPosLabel;
+    private JLabel clickedPosLabel;
     private JLabel clickedCodepointLabel;
     private JLabel clickedFgIndexLabel;
     private JLabel clickedBgIndexLabel;
-
-    private JLabel clickedAlphaLabel; // New label for clicked alpha value
+    private JLabel clickedAlphaLabel;
 
     // Selection Area Labels
     private JLabel selectionXPosLabel;
     private JLabel selectionWidthLabel;
 
-    private GlyphPreviewPanel glyphPreviewPanel; // Panel to display the clicked glyph
-    private ResultGlyph currentClickedGlyph; // Store the currently clicked glyph
-    // private int[] currentColorPalette; // Store the palette
-    private Map<Integer, Long> currentAsciiPatterns; // Store the patterns
+    private GlyphPreviewPanel glyphPreviewPanel;
+    private ResultGlyph currentClickedGlyph;
+    private Map<Integer, Long> currentAsciiPatterns;
 
     // Internal Clipboards
-    private ResultGlyph internalClipboardGlyph = null; // For full glyph copy/paste
-    private int internalClipboardFgIndex = -1; // For color-only copy/paste
-    private int internalClipboardBgIndex = -1; // For color-only copy/paste
+    private ResultGlyph internalClipboardGlyph = null;
+    private int internalClipboardFgIndex = -1;
+    private int internalClipboardBgIndex = -1;
 
-    // Add this with other instance variables in the ProcessingCore class
-    public static boolean preferLightForeground = true; // true = light colors as FG, false = dark colors as FG
+    public static boolean preferLightForeground = true;
     public static boolean usePreference = false;
 
-    // Singleton-Instanz
     private static ControlPanel Instance;
 
     public enum PanelState {
@@ -117,28 +114,25 @@ public class ControlPanel extends JFrame implements ActionListener {
         None,
     }
 
-    public static AlgoPreference algoPreference = AlgoPreference.None; // Default to NONE
-    public static double algoDeltaThreshold = 100; // Default threshold value
+    public static AlgoPreference algoPreference = AlgoPreference.None;
+    public static double algoDeltaThreshold = 100;
     PanelState state = PanelState.SETUP;
 
-    /**
-     * ––
-     * Innere Klasse zum Zeichnen des ausgewählten Glyphs.
-     */
     private class GlyphPreviewPanel extends JPanel {
-        private static final int PREVIEW_PIXEL_SIZE = 10; // Size of each pixel in the preview
+        private static final int PREVIEW_PIXEL_SIZE = 8;
         private static final int PREVIEW_WIDTH = ProcessingCore.GLYPH_WIDTH * PREVIEW_PIXEL_SIZE;
-        private static final int PREVIEW_HEIGHT = ProcessingCore.GLYPH_HEIGHT * PREVIEW_PIXEL_SIZE;
+        private static final int PREVIEW_HEIGHT = (ProcessingCore.GLYPH_HEIGHT * PREVIEW_PIXEL_SIZE) * 2;
 
         GlyphPreviewPanel() {
             setPreferredSize(new Dimension(PREVIEW_WIDTH, PREVIEW_HEIGHT));
-            setBorder(BorderFactory.createLineBorder(Color.GRAY)); // Add a border
+            setBorder(BorderFactory.createLineBorder(Color.GRAY));
         }
 
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            // Draw background
+            g.setColor(getBackground());
+            g.fillRect(0, 0, getWidth(), getHeight());
             drawGlyphColored(g);
             drawOnlyGlyph(g);
         }
@@ -149,34 +143,26 @@ public class ControlPanel extends JFrame implements ActionListener {
                 Color fgColor = Color.BLACK;
                 Color bgColor = Color.WHITE;
 
-                // Berechne richtige X-Position, damit beide Darstellungen übereinander liegen
-                int xOffset = getWidth() - (ProcessingCore.GLYPH_WIDTH * PREVIEW_PIXEL_SIZE);
+                int yOffset = ProcessingCore.GLYPH_HEIGHT * PREVIEW_PIXEL_SIZE;
 
                 for (int y = 0; y < ProcessingCore.GLYPH_HEIGHT; y++) {
                     for (int x = 0; x < ProcessingCore.GLYPH_WIDTH; x++) {
                         int bitIndex = y * ProcessingCore.GLYPH_WIDTH + x;
                         boolean pixelOn = ((pattern >> bitIndex) & 1L) == 1L;
-                        if (pixelOn) {
-                            g.setColor(fgColor);
-                            // Positioniere die schwarz-weiße Darstellung an der gleichen Stelle wie die
-                            // farbige
-                            g.fillRect(xOffset + x * PREVIEW_PIXEL_SIZE, y * PREVIEW_PIXEL_SIZE,
-                                    PREVIEW_PIXEL_SIZE, PREVIEW_PIXEL_SIZE);
-                        }
+                        g.setColor(pixelOn ? fgColor : bgColor);
+                        g.fillRect(x * PREVIEW_PIXEL_SIZE, yOffset + (y * PREVIEW_PIXEL_SIZE), PREVIEW_PIXEL_SIZE,
+                                PREVIEW_PIXEL_SIZE);
                     }
                 }
             }
         }
 
         public void drawGlyphColored(Graphics g) {
-            g.setColor(getBackground());
-            g.fillRect(0, 0, getWidth(), getHeight());
-
             if (currentClickedGlyph != null && ColorPalette.getColors() != null && currentAsciiPatterns != null) {
                 long pattern = currentAsciiPatterns.getOrDefault(currentClickedGlyph.codePoint, 0L);
                 int fgColorInt = ColorPalette.getColors()[currentClickedGlyph.fgIndex];
                 int bgColorInt = ColorPalette.getColors()[currentClickedGlyph.bgIndex];
-                Color fgColor = new Color(fgColorInt, true); // Use Processing color int directly
+                Color fgColor = new Color(fgColorInt, true);
                 Color bgColor = new Color(bgColorInt, true);
 
                 for (int y = 0; y < ProcessingCore.GLYPH_HEIGHT; y++) {
@@ -189,363 +175,305 @@ public class ControlPanel extends JFrame implements ActionListener {
                     }
                 }
             } else {
-                // Optionally draw a placeholder if nothing is selected
                 g.setColor(Color.DARK_GRAY);
-                g.drawString("No Glyph", 10, PREVIEW_HEIGHT / 2);
+                // g.drawString("", 2, PREVIEW_HEIGHT / 4);
             }
         }
     }
 
-    /**
-     * Erstellt ein neues Kontrollfenster für die ProcessingCore-Anwendung.
-     * 
-     * @param core Die ProcessingCore-Instanz, die gesteuert werden soll.
-     */
     public ControlPanel(ProcessingCore core) {
-        Instance = this; // Setze die Singleton-Instanz
+        Instance = this;
         if (core == null) {
-            throw new IllegalArgumentException("ProcessingCore darf nicht null sein");
+            throw new IllegalArgumentException("ProcessingCore cannot be null");
         }
         this.p = core;
 
-        // Fenster-Konfiguration
-        setTitle("ASCII Art Controls");
+        setTitle("Controls");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setResizable(false);
+        // Compact layout
+        JPanel mainPanel = new JPanel(new BorderLayout(3, 3));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        // Layout erstellen
-        JPanel mainPanel = new JPanel(new BorderLayout(5, 5)); // Use BorderLayout
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        // --- 1. Toolbar Section (Buttons) ---
+        JPanel toolbarPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        gbc.insets = new Insets(1, 1, 1, 1);
 
-        // --- Top Panel for Buttons and Scale ---
-        JPanel topPanel = new JPanel();
-        topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS)); // Vertical stack
+        // Row 1: File Actions
+        loadButton = createButton("Load", "Load File (L)");
+        toggleViewButton = createButton("Image", "Toggle View (S)");
+        saveButton = createButton("Export", "Export Output (P)");
+        restartButton = createButton("Recalc", "Restart Processing (R)");
 
-        Dimension buttonSize = new Dimension(200, 30); // Keep preferred size
+        JPanel fileRow = new JPanel(new GridLayout(1, 4, 3, 0));
+        fileRow.add(loadButton);
+        fileRow.add(saveButton);
+        fileRow.add(restartButton);
+        fileRow.add(toggleViewButton);
 
-        // --- Buttons Panel (Grid Layout) ---
-        JPanel buttonPanel = new JPanel(new GridLayout(0, 1, 5, 5)); // Back to GridLayout for buttons
+        gbc.gridx = 0; gbc.gridy = 0;
+        toolbarPanel.add(fileRow, gbc);
 
-        loadButton = new JButton("Load File (L)");
-        loadButton.setPreferredSize(buttonSize); // Use preferred size
-        loadButton.addActionListener(this);
-        buttonPanel.add(loadButton);
+        // Row 2: Edit & View Actions
+        undoButton = createButton("< Undo", "Undo (Ctrl+Z)");
+        redoButton = createButton("Redo >", "Redo (Ctrl+Y)");
+        centerImageButton = createButton("Center", "Center Image");
+        
+        String[] scales = { "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x" };
+        scaleSelector = new JComboBox<>(scales);
+        scaleSelector.setSelectedIndex(1);
+        scaleSelector.addActionListener(this);
+        scaleSelector.setToolTipText("Display Scale");
+        
+        JPanel editRow = new JPanel(new GridLayout(1, 4, 3, 0));
+        editRow.add(undoButton);
+        editRow.add(redoButton);
+        editRow.add(centerImageButton);
+        editRow.add(scaleSelector);
+        
+        gbc.gridy = 1;
+        toolbarPanel.add(editRow, gbc);
 
-        toggleViewButton = new JButton("Toggle View (S)");
-        toggleViewButton.setPreferredSize(buttonSize);
-        toggleViewButton.addActionListener(this);
-        buttonPanel.add(toggleViewButton);
-
-        saveButton = new JButton("Save Output (P)");
-        saveButton.setPreferredSize(buttonSize);
-        saveButton.addActionListener(this);
-        buttonPanel.add(saveButton);
-
-        restartButton = new JButton("Restart Processing (R)");
-        restartButton.setPreferredSize(buttonSize);
-        restartButton.addActionListener(this);
-        buttonPanel.add(restartButton);
-
-        undoButton = new JButton("Undo (Ctrl+Z)");
-        undoButton.setPreferredSize(buttonSize);
-        undoButton.addActionListener(this);
-        buttonPanel.add(undoButton);
-
-        redoButton = new JButton("Redo (Ctrl+Y)");
-        redoButton.setPreferredSize(buttonSize);
-        redoButton.addActionListener(this);
-        buttonPanel.add(redoButton);
-
-        JPanel prefPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-
+        // Row 3: Algorithm Settings
+        JPanel algoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        algoPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "Algorithm", 0, 0, new Font("SansSerif", Font.PLAIN, 10)));
+        
+        JComboBox<String> algoPreferenceSelector = new JComboBox<>(
+                new String[] { "Light", "Dark", "Thresh_L", "Thresh_D", "None" });
+        algoPreferenceSelector.setSelectedItem(algoPreference.toString());
+        algoPreferenceSelector.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        
         JSpinner algoDeltaThresholdSpinner = new JSpinner();
-        algoDeltaThresholdSpinner.setName("Threshold");
-        algoDeltaThresholdSpinner.setToolTipText("The higher the threshold, the easier it is ");
-        algoDeltaThresholdSpinner.setPreferredSize(new Dimension(100, 30));
+        algoDeltaThresholdSpinner.setPreferredSize(new Dimension(60, 22));
         algoDeltaThresholdSpinner.setValue(algoDeltaThreshold);
         algoDeltaThresholdSpinner.addChangeListener(e -> {
             int value = (int) algoDeltaThresholdSpinner.getValue();
             algoDeltaThreshold = (double) value;
-            Logger.println("Algo Delta Threshold: " + algoDeltaThreshold);
         });
-        algoDeltaThresholdSpinner.setEnabled(algoPreference == AlgoPreference.Threshold_Dark ||
-                algoPreference == AlgoPreference.Threshold_Light);
-
-        JComboBox<String> algoPreferenceSelector = new JComboBox<>(
-                new String[] { "Light", "Dark", "Threshold_Light", "Threshold_Dark", "None" });
-        algoPreferenceSelector.setSelectedItem(algoPreference.toString());
+        algoDeltaThresholdSpinner.setEnabled(algoPreference == AlgoPreference.Threshold_Dark || algoPreference == AlgoPreference.Threshold_Light);
 
         algoPreferenceSelector.addActionListener(e -> {
             String selected = (String) algoPreferenceSelector.getSelectedItem();
             if (selected != null) {
-                algoPreference = AlgoPreference.valueOf(selected);
-
-                if (algoPreference == AlgoPreference.Light) {
-                    usePreference = true;
-                    preferLightForeground = true;
-                } else if (algoPreference == AlgoPreference.Dark) {
-                    usePreference = true;
-                    preferLightForeground = false;
-                } else if (algoPreference == AlgoPreference.Threshold_Dark) {
-                    usePreference = true;
-                    preferLightForeground = false;
-                } else if (algoPreference == AlgoPreference.Threshold_Light) {
-                    usePreference = true;
-                    preferLightForeground = true;
-                } else if (algoPreference == AlgoPreference.None) {
+                 if(selected.equals("Thresh_L")) selected = "Threshold_Light";
+                 if(selected.equals("Thresh_D")) selected = "Threshold_Dark";
+                 try {
+                     algoPreference = AlgoPreference.valueOf(selected);
+                 } catch(IllegalArgumentException ex) {
+                     if(selected.equals("Light")) algoPreference = AlgoPreference.Light;
+                     if(selected.equals("Dark")) algoPreference = AlgoPreference.Dark;
+                 }
+                 
+                if (algoPreference == AlgoPreference.Light || algoPreference == AlgoPreference.Threshold_Light) {
+                    usePreference = true; preferLightForeground = true;
+                } else if (algoPreference == AlgoPreference.Dark || algoPreference == AlgoPreference.Threshold_Dark) {
+                    usePreference = true; preferLightForeground = false;
+                } else {
                     usePreference = false;
                 }
                 algoDeltaThresholdSpinner.setEnabled(algoPreference == AlgoPreference.Threshold_Dark ||
                         algoPreference == AlgoPreference.Threshold_Light);
-                Logger.println("Algo Preference: " + algoPreference);
             }
         });
+        
+        algoPanel.add(algoPreferenceSelector);
+        algoPanel.add(new JLabel("Th:"));
+        algoPanel.add(algoDeltaThresholdSpinner);
 
-        prefPanel.add(new JLabel("Algo Preference:"));
-        prefPanel.add(algoPreferenceSelector);
-        prefPanel.add(algoDeltaThresholdSpinner);
-        // usePreferences = new Checkbox("Use Preferences");
-        // usePreferences.setState(usePreference);
-        // usePreferences.addItemListener(e -> {
-        // usePreference = usePreferences.getState();
-        // prefererWhiteAsForegroundCheckbox.setEnabled(usePreference);
+        gbc.gridy = 2;
+        toolbarPanel.add(algoPanel, gbc);
 
-        // Logger.println("Use Preferences: " + usePreference);
-        // });
+        mainPanel.add(toolbarPanel, BorderLayout.NORTH);
 
-        // prefererWhiteAsForegroundCheckbox = new Checkbox("Prefer Light Colors as
-        // Foreground");
-        // prefererWhiteAsForegroundCheckbox.setState(preferLightForeground);
-        // prefererWhiteAsForegroundCheckbox.addItemListener(e -> {
-        // preferLightForeground = prefererWhiteAsForegroundCheckbox.getState();
-        // Logger.println("Prefer Light Colors as Foreground: " +
-        // preferLightForeground);
-        // });
-        // prefererWhiteAsForegroundCheckbox.setEnabled(usePreference);
+        // --- 2. Inspector & Tools Section ---
+        JPanel centerPanel = new JPanel(new BorderLayout(5, 5));
+        
+        // Info Panel (Left)
+        JPanel infoWrapper = new JPanel(new GridBagLayout());
+        infoWrapper.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "Inspector", 0, 0, new Font("SansSerif", Font.PLAIN, 11)));
+        GridBagConstraints igbc = new GridBagConstraints();
+        igbc.insets = new Insets(1, 3, 1, 3);
+        igbc.anchor = GridBagConstraints.WEST;
+        
+        // Headers
+        addLabel(infoWrapper, "Click", 1, 0, igbc);
+        addLabel(infoWrapper, "Hover", 2, 0, igbc);
 
-        // prefPanel.add(usePreferences);
-        // prefPanel.add(prefererWhiteAsForegroundCheckbox);
-        buttonPanel.add(prefPanel);
+        // Data Rows
+        clickedPosLabel = new JLabel("-,-"); hoverPosLabel = new JLabel("-,-");
+        clickedPosLabel.setPreferredSize(new Dimension(80, 15));
+        hoverPosLabel.setPreferredSize(new Dimension(80, 15));
+        addInfoRow(infoWrapper, "Pos", clickedPosLabel, hoverPosLabel, 1);
+        
+        clickedCodepointLabel = new JLabel("-"); hoverCodepointLabel = new JLabel("-");
+        addInfoRow(infoWrapper, "CP", clickedCodepointLabel, hoverCodepointLabel, 2);
+        
+        clickedFgIndexLabel = new JLabel("-"); hoverFgIndexLabel = new JLabel("-");
+        addInfoRow(infoWrapper, "FG", clickedFgIndexLabel, hoverFgIndexLabel, 3);
+        
+        clickedBgIndexLabel = new JLabel("-"); hoverBgIndexLabel = new JLabel("-");
+        addInfoRow(infoWrapper, "BG", clickedBgIndexLabel, hoverBgIndexLabel, 4);
+        
+        clickedAlphaLabel = new JLabel("-"); hoverAlphaLabel = new JLabel("-");
+        addInfoRow(infoWrapper, "Alp", clickedAlphaLabel, hoverAlphaLabel, 5);
 
-        topPanel.add(buttonPanel);
-        topPanel.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
+        // Area info
+        selectionXPosLabel = new JLabel("-,-");
+        selectionWidthLabel = new JLabel("-x-");
+        igbc.gridx = 0; igbc.gridy = 6; igbc.gridwidth = 4;
+        igbc.insets = new Insets(5, 2, 1, 2);
+        infoWrapper.add(new JLabel("Sel: "), igbc);
+        
+        // Small sub-panel for selection stats
+        JPanel selStats = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        selStats.add(selectionXPosLabel);
+        selStats.add(selectionWidthLabel);
+        igbc.gridy = 7;
+        infoWrapper.add(selStats, igbc);
 
-        // --- Scale Selector Panel (Flow Layout) ---
-        JPanel scalePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        scalePanel.add(new JLabel("Display Scale:"));
-        String[] scales = { "1", "2", "3", "4", "5", "6", "7", "8" };
-        scaleSelector = new JComboBox<>(scales);
-        scaleSelector.setSelectedIndex(1); // Default to 2
-        scaleSelector.addActionListener(this);
-        scalePanel.add(scaleSelector); // Diese Zeile war vergessen worden
-
-        // Center Image button neben dem Scale Selector
-        centerImageButton = new JButton("Center Image");
-        centerImageButton.setToolTipText("Center the current image in the view");
-        centerImageButton.addActionListener(this);
-        scalePanel.add(centerImageButton);
-
-        // Constrain the panel's max height to prevent vertical stretching
-        scalePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, scaleSelector.getPreferredSize().height));
-        topPanel.add(scalePanel);
-        topPanel.add(Box.createRigidArea(new Dimension(0, 10))); // Spacer
-
-        // --- Selection Info Container ---
-        JPanel selectionInfoContainer = new JPanel();
-        selectionInfoContainer.setLayout(new BoxLayout(selectionInfoContainer, BoxLayout.Y_AXIS)); // Vertical layout
-                                                                                                   // for table + button
-        selectionInfoContainer.setBorder(BorderFactory.createTitledBorder("Selection Info"));
-
-        // --- Selection Table Panel (GridLayout) ---
-        JPanel selectionTablePanel = new JPanel(new GridLayout(6, 3, 8, 2));
-
-        // Row 1: X Coordinate
-        selectionTablePanel.add(new JLabel("X:"));
-        clickedXPosLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(clickedXPosLabel);
-        hoverXPosLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(hoverXPosLabel);
-
-        // Row 2: Y Coordinate
-        selectionTablePanel.add(new JLabel("Y:"));
-        clickedYPosLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(clickedYPosLabel);
-        hoverYPosLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(hoverYPosLabel);
-
-        // Row 3: Codepoint
-        selectionTablePanel.add(new JLabel("Codepoint:"));
-        clickedCodepointLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(clickedCodepointLabel);
-        hoverCodepointLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(hoverCodepointLabel);
-
-        // Row 4: FG Index
-        selectionTablePanel.add(new JLabel("FG Index:"));
-        clickedFgIndexLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(clickedFgIndexLabel);
-        hoverFgIndexLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(hoverFgIndexLabel);
-
-        // Row 5: BG Index
-        selectionTablePanel.add(new JLabel("BG Index:"));
-        clickedBgIndexLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(clickedBgIndexLabel);
-        hoverBgIndexLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(hoverBgIndexLabel);
-
-        // Row 5: Alpha
-        selectionTablePanel.add(new JLabel("Alpha:"));
-        clickedAlphaLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(clickedAlphaLabel);
-        hoverAlphaLabel = new JLabel("-", SwingConstants.CENTER);
-        selectionTablePanel.add(hoverAlphaLabel);
-
-        selectionInfoContainer.add(selectionTablePanel); // Add table to container
-        selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
-
-        // --- Selection Area Dimensions Panel ---
-        JPanel selectionAreaPanel = new JPanel(new GridLayout(2, 2, 8, 2));
-        selectionAreaPanel.setBorder(BorderFactory.createTitledBorder("Selection Area"));
-
-        // Selection Position (X,Y)
-        selectionAreaPanel.add(new JLabel("Position (X,Y):"));
-        selectionXPosLabel = new JLabel("-,-", SwingConstants.CENTER);
-        selectionAreaPanel.add(selectionXPosLabel);
-
-        // Selection Size (Width,Height)
-        selectionAreaPanel.add(new JLabel("Size (W,H):"));
-        selectionWidthLabel = new JLabel("-,-", SwingConstants.CENTER);
-        selectionAreaPanel.add(selectionWidthLabel);
-
-        // Remove the unused labels that were previously used for separate values
-
-        selectionInfoContainer.add(selectionAreaPanel);
-        selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
-
-        // --- Glyph Preview Panel ---
+        // Glyph Preview
         glyphPreviewPanel = new GlyphPreviewPanel();
-        glyphPreviewPanel.setAlignmentX(Component.CENTER_ALIGNMENT); // Center horizontally
-        selectionInfoContainer.add(glyphPreviewPanel); // Add preview panel below table
-        selectionInfoContainer.add(Box.createRigidArea(new Dimension(0, 5))); // Spacer
+        GridBagConstraints pgbc = new GridBagConstraints();
+        pgbc.gridx = 4; pgbc.gridy = 0;
+        pgbc.gridheight = 8;
+        pgbc.insets = new Insets(2, 10, 2, 2);
+        pgbc.anchor = GridBagConstraints.NORTHWEST;
+        infoWrapper.add(glyphPreviewPanel, pgbc);
+        
+        // Push everything to top-left
+        GridBagConstraints spacerGbc = new GridBagConstraints();
+        spacerGbc.gridx = 5; spacerGbc.gridy = 10;
+        spacerGbc.weightx = 1.0; spacerGbc.weighty = 1.0;
+        infoWrapper.add(new JLabel(""), spacerGbc);
 
-        // --- Button Rows for Copy/Paste ---
-        // Row 1: Glyph Copy/Paste
-        JPanel glyphCopyPastePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        copyGlyphButton = new JButton("Copy Glyph"); // Renamed
-        copyGlyphButton.setToolTipText("Copy Char + Colors (Internal) & Char (System Clipboard)");
-        copyGlyphButton.setEnabled(false);
-        copyGlyphButton.addActionListener(this); // Use 'this' for button clicks
-        glyphCopyPastePanel.add(copyGlyphButton);
+        centerPanel.add(infoWrapper, BorderLayout.CENTER);
 
-        pasteCharExtButton = new JButton("Paste Char (Ext)"); // Renamed
-        pasteCharExtButton.setToolTipText("Paste Char from System Clipboard, Keep Colors");
-        pasteCharExtButton.setEnabled(false);
-        pasteCharExtButton.addActionListener(this);
-        glyphCopyPastePanel.add(pasteCharExtButton);
+        // Tools / Actions Panel
+        JPanel toolsPanel = new JPanel(new GridLayout(3, 3, 2, 2));
+        toolsPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "Actions", 0, 0, new Font("SansSerif", Font.PLAIN, 11)));
+        
+        copyGlyphButton = createSmallButton("Copy Glyph", "Copy Glyph (Int) + Char (Ext)");
+        pasteCharExtButton = createSmallButton("Paste Char", "Paste Char (Ext)");
+        pasteGlyphIntButton = createSmallButton("Paste Glyph", "Paste Glyph (Int)");
+        
+        copyColorsButton = createSmallButton("Copy Colors", "Copy Colors");
+        pasteColorsButton = createSmallButton("Paste Colors", "Paste Colors");
+        flipColorsButton = createSmallButton("Flip Colors", "Flip Colors");
+        
+        flipGlyphButton = createSmallButton("Flip Glyph", "Invert Glyph Pattern");
+        transparentBgButton = createSmallButton("Alpha BG", "Set Transparent Background");
+        
+        JButton dummy = new JButton("-"); dummy.setEnabled(false);
 
-        pasteGlyphIntButton = new JButton("Paste Glyph (Int)"); // New
-        pasteGlyphIntButton.setToolTipText("Paste Internally Copied Char + Colors");
-        pasteGlyphIntButton.setEnabled(false);
-        pasteGlyphIntButton.addActionListener(this);
-        glyphCopyPastePanel.add(pasteGlyphIntButton);
+        toolsPanel.add(copyGlyphButton);
+        toolsPanel.add(pasteCharExtButton);
+        toolsPanel.add(pasteGlyphIntButton);
+        toolsPanel.add(copyColorsButton);
+        toolsPanel.add(pasteColorsButton);
+        toolsPanel.add(flipColorsButton);
+        toolsPanel.add(flipGlyphButton);
+        toolsPanel.add(transparentBgButton);
+        toolsPanel.add(dummy);
 
-        glyphCopyPastePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, copyGlyphButton.getPreferredSize().height));
-        selectionInfoContainer.add(glyphCopyPastePanel);
+        centerPanel.add(toolsPanel, BorderLayout.SOUTH);
+        mainPanel.add(centerPanel, BorderLayout.CENTER);
 
-        // Row 2: Color Copy/Paste/Flip
-        JPanel colorCopyPastePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        copyColorsButton = new JButton("Copy Colors");
-        copyColorsButton.setToolTipText("Copy Only Foreground/Background Colors (Cmd+Shift+C)"); // Updated tooltip
-        copyColorsButton.setEnabled(false);
-        copyColorsButton.addActionListener(this);
-        colorCopyPastePanel.add(copyColorsButton);
-
-        pasteColorsButton = new JButton("Paste Colors");
-        pasteColorsButton.setToolTipText("Paste Only Internally Copied Colors (Cmd+Shift+V)"); // Updated tooltip
-        pasteColorsButton.setEnabled(false);
-        pasteColorsButton.addActionListener(this);
-        colorCopyPastePanel.add(pasteColorsButton);
-
-        flipColorsButton = new JButton("Flip Colors"); // New Button
-        flipColorsButton.setToolTipText("Swap Foreground and Background Colors (Cmd+F)"); // Tooltip for new button
-        flipColorsButton.setEnabled(false);
-        flipColorsButton.addActionListener(this);
-        colorCopyPastePanel.add(flipColorsButton); // Add new button to panel
-
-        flipGlyphButton = new JButton("Flip Glyph"); // Hinzufügen des Buttons
-        flipGlyphButton.setToolTipText("Find an alternative glyph match (try to invert pattern)");
-        flipGlyphButton.setEnabled(false);
-        flipGlyphButton.addActionListener(this);
-        colorCopyPastePanel.add(flipGlyphButton); // Button zum Panel hinzufügen
-
-        transparentBgButton = new JButton("Transparent Background"); // New Button
-        transparentBgButton.setToolTipText("Set Background to Transparent");
-        transparentBgButton.setEnabled(false);
-        transparentBgButton.addActionListener(this);
-        colorCopyPastePanel.add(transparentBgButton); // Add new button to panel
-
-        colorCopyPastePanel
-                .setMaximumSize(new Dimension(Integer.MAX_VALUE, copyColorsButton.getPreferredSize().height));
-        selectionInfoContainer.add(colorCopyPastePanel);
-
-        // Add panels to main panel
-        mainPanel.add(topPanel, BorderLayout.NORTH);
-        mainPanel.add(selectionInfoContainer, BorderLayout.CENTER); // Selection info below buttons
-
-        // --- Log Area ---
-        logArea = new TextArea(8, 50); // Adjusted size
+        // --- Log ---
+        logArea = new TextArea(4, 30);
         logArea.setEditable(false);
-        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        logArea.setBackground(Color.BLACK);
-        logArea.setForeground(Color.WHITE);
-        mainPanel.add(new JScrollPane(logArea), BorderLayout.SOUTH); // Log area at the bottom
+        logArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        logArea.setBackground(new Color(30, 30, 30));
+        logArea.setForeground(Color.LIGHT_GRAY);
+        mainPanel.add(new JScrollPane(logArea), BorderLayout.SOUTH);
 
         add(mainPanel);
         pack();
-        setLocationRelativeTo(null); // Zentrieren auf dem Bildschirm
+        setLocationRelativeTo(null);
+    }
+    
+    private void addLabel(JPanel p, String text, int x, int y, GridBagConstraints gbc) {
+        gbc.gridx = x; gbc.gridy = y;
+        JLabel l = new JLabel(text);
+        l.setFont(new Font("SansSerif", Font.BOLD, 10));
+        p.add(l, gbc);
+    }
+    
+    private void addInfoRow(JPanel p, String label, JLabel clickL, JLabel hovrL, int y) {
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(0, 3, 0, 3);
+        gbc.anchor = GridBagConstraints.WEST;
+        
+        gbc.gridx = 0; gbc.gridy = y;
+        JLabel lbl = new JLabel(label);
+        lbl.setFont(new Font("SansSerif", Font.PLAIN, 10));
+        p.add(lbl, gbc);
+        
+        gbc.gridx = 1; 
+        clickL.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        p.add(clickL, gbc);
+        
+        gbc.gridx = 2; 
+        hovrL.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        p.add(hovrL, gbc);
+    }
+
+    private JButton createButton(String text, String tooltip) {
+        JButton b = new JButton(text);
+        b.setToolTipText(tooltip);
+        b.setMargin(new Insets(2, 2, 2, 2));
+        b.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        b.addActionListener(this);
+        return b;
+    }
+    
+    private JButton createSmallButton(String text, String tooltip) {
+        JButton b = new JButton(text);
+        b.setToolTipText(tooltip);
+        b.setMargin(new Insets(1, 1, 1, 1));
+        b.setFont(new Font("SansSerif", Font.PLAIN, 10));
+        b.addActionListener(this);
+        b.setEnabled(false);
+        return b;
     }
 
     public void setState(PanelState state) {
         this.state = state;
         boolean editEnabled = (state == PanelState.EDIT);
-        loadButton.setEnabled(true); // Always enabled? Or depends on state? Assuming always.
+        loadButton.setEnabled(true);
         toggleViewButton.setEnabled(editEnabled);
         saveButton.setEnabled(editEnabled);
         restartButton.setEnabled(editEnabled);
         scaleSelector.setEnabled(editEnabled);
         undoButton.setEnabled(editEnabled);
         redoButton.setEnabled(editEnabled);
+        centerImageButton.setEnabled(editEnabled);
 
-        // Enablement of copy/paste buttons/actions depends on selection/clipboard
-        // state,
-        // handled mainly in updateClickedInfo. Disable all if not in EDIT state.
         if (!editEnabled) {
-            updateSelectionInfo(-1, -1, null); // Clear hover info
-            updateClickedInfo(-1, -1, null, null, null); // Clear clicked info
-            copyGlyphButton.setEnabled(false);
-            pasteCharExtButton.setEnabled(false);
-            pasteGlyphIntButton.setEnabled(false);
-            copyColorsButton.setEnabled(false);
-            pasteColorsButton.setEnabled(false);
-            flipColorsButton.setEnabled(false); // Disable new button
-            flipGlyphButton.setEnabled(false); // Disable new button
-            transparentBgButton.setEnabled(false); // Disable new button
+            updateSelectionInfo(-1, -1, null);
+            updateClickedInfo(-1, -1, null, null, null);
+            disableEditButtons();
         }
+    }
+    
+    private void disableEditButtons() {
+        copyGlyphButton.setEnabled(false);
+        pasteCharExtButton.setEnabled(false);
+        pasteGlyphIntButton.setEnabled(false);
+        copyColorsButton.setEnabled(false);
+        pasteColorsButton.setEnabled(false);
+        flipColorsButton.setEnabled(false);
+        flipGlyphButton.setEnabled(false);
+        transparentBgButton.setEnabled(false);
     }
 
     public PanelState getPanelState() {
         return state;
     }
 
-    /**
-     * Determines if a selection is active and should be used for operations
-     * instead of a single clicked cell.
-     * 
-     * @return true if a selection area exists and should be used
-     */
     private boolean useSelectionForActions() {
-        // Check if Processing instance has a valid selection
         return p.hasSelection &&
                 p.selectionStartX >= 0 && p.selectionStartY >= 0 &&
                 p.selectionEndX >= 0 && p.selectionEndY >= 0;
@@ -555,271 +483,142 @@ public class ControlPanel extends JFrame implements ActionListener {
     public void actionPerformed(ActionEvent e) {
         try {
             Object source = e.getSource();
-            // Handle Button Clicks
-            if (source == toggleViewButton)
-                p.keyPressed('s');
-            else if (source == saveButton)
-                p.keyPressed('p');
-            else if (source == restartButton)
-                p.keyPressed('r');
-            else if (source == scaleSelector)
-                p.keyPressed((char) ('0' + scaleSelector.getSelectedIndex() + 1));
-            else if (source == loadButton)
-                p.keyPressed('l');
-            else if (source == undoButton)
-                p.undoAction(); // Call the undo method in ProcessingCore
-            else if (source == redoButton)
-                p.redoAction(); // Call the redo method in ProcessingCore
-            else if (source == copyGlyphButton)
-                copyInternalGlyphAndExternalChar();
-            else if (source == pasteCharExtButton)
-                pasteCharacterFromClipboard();
-            else if (source == pasteGlyphIntButton)
-                pasteInternalGlyph();
-            else if (source == copyColorsButton)
-                copyInternalColors();
-            else if (source == pasteColorsButton)
-                pasteInternalColors();
-            else if (source == flipColorsButton) { // Handle flip colors button click
-                if (useSelectionForActions()) {
-                    p.flipSelectedGlyphColors(); // Apply to selection
-                } else {
-                    p.flipClickedGlyphColors(); // Apply to single cell
-                }
-            } else if (source == flipGlyphButton) { // Handle flip glyph button click
-                if (useSelectionForActions()) {
-                    p.invertGlyphPatternForSelection(); // Apply to selection
-                } else {
-                    p.invertGlyphPattern(); // Apply to single cell
-                }
-            } else if (source == centerImageButton) // Handle center image button click
-                p.centerImage(); // Call the method in ProcessingCore
-            else if (source == transparentBgButton) { // Handle transparent background button click
-                if (useSelectionForActions()) {
-                    p.setTransparentBackgroundForSelection(); // Apply to selection
-                } else {
-                    p.setTransparentBackground(); // Apply to single cell
-                }
+            if (source == toggleViewButton) p.keyPressed('s');
+            else if (source == saveButton) p.keyPressed('p');
+            else if (source == restartButton) p.keyPressed('r');
+            else if (source == scaleSelector) p.keyPressed((char) ('0' + scaleSelector.getSelectedIndex() + 1));
+            else if (source == loadButton) p.keyPressed('l');
+            else if (source == undoButton) p.undoAction();
+            else if (source == redoButton) p.redoAction();
+            else if (source == centerImageButton) p.centerImage();
+            else if (source == copyGlyphButton) copyInternalGlyphAndExternalChar();
+            else if (source == pasteCharExtButton) pasteCharacterFromClipboard();
+            else if (source == pasteGlyphIntButton) pasteInternalGlyph();
+            else if (source == copyColorsButton) copyInternalColors();
+            else if (source == pasteColorsButton) pasteInternalColors();
+            else if (source == flipColorsButton) {
+                if (useSelectionForActions()) p.flipSelectedGlyphColors();
+                else p.flipClickedGlyphColors();
+            } else if (source == flipGlyphButton) {
+                if (useSelectionForActions()) p.invertGlyphPatternForSelection();
+                else p.invertGlyphPattern();
+            } else if (source == transparentBgButton) {
+                if (useSelectionForActions()) p.setTransparentBackgroundForSelection();
+                else p.setTransparentBackground();
             }
-
         } catch (Exception ex) {
-            Logger.println("Fehler bei Button-Aktion: " + ex.getMessage());
+            Logger.println("Error: " + ex.getMessage());
             ex.printStackTrace();
         }
     }
 
-    /**
-     * Copies the character to the system clipboard (external).
-     */
     private void copyCharacterToClipboard() {
         if (currentClickedGlyph != null) {
             try {
                 String character = new String(Character.toChars(currentClickedGlyph.codePoint));
                 StringSelection stringSelection = new StringSelection(character);
                 Toolkit.getDefaultToolkit().getSystemClipboard().setContents(stringSelection, null);
-                Logger.println("Copied char '" + character + "' to system clipboard.");
+                Logger.println("Copied char '" + character + "'");
             } catch (Exception ex) {
-                Logger.println("Error copying character to system clipboard: " + ex.getMessage());
+                Logger.println("Error copying: " + ex.getMessage());
             }
         }
     }
 
-    /**
-     * Copies the full glyph data internally and the character externally. (Cmd+C)
-     */
     public void copyInternalGlyphAndExternalChar() {
         if (currentClickedGlyph != null) {
-            // Internal copy
             internalClipboardGlyph = new ResultGlyph(
                     currentClickedGlyph.codePoint,
                     currentClickedGlyph.fgIndex,
                     currentClickedGlyph.bgIndex);
-            Logger.println("Copied glyph internally: " + glyphToString(internalClipboardGlyph));
-            // External copy (character only)
+            
+            internalClipboardFgIndex = currentClickedGlyph.fgIndex;
+            internalClipboardBgIndex = currentClickedGlyph.bgIndex;
+            Logger.println("Copied glyph internally");
             copyCharacterToClipboard();
-            // Update UI (enable paste buttons)
             updatePasteButtonStates();
-        } else {
-            Logger.println("No glyph selected to copy.");
         }
     }
 
-    /**
-     * Copies only the colors internally. (Cmd+Shift+C)
-     */
     public void copyInternalColors() {
         if (currentClickedGlyph != null) {
             internalClipboardFgIndex = currentClickedGlyph.fgIndex;
             internalClipboardBgIndex = currentClickedGlyph.bgIndex;
-            Logger.println(
-                    "Copied colors internally: FG=" + internalClipboardFgIndex + ", BG=" + internalClipboardBgIndex);
-            // Update UI (enable paste buttons)
+            Logger.println("Copied colors: FG=" + internalClipboardFgIndex + ", BG=" + internalClipboardBgIndex);
             updatePasteButtonStates();
-        } else {
-            Logger.println("No glyph selected to copy colors from.");
         }
     }
 
-    /**
-     * Pastes character from system clipboard, keeping existing colors. (Cmd+V)
-     * Prüft zuerst, ob ein internes Glyph vorhanden ist, das bevorzugt wird.
-     * Falls nicht, wird der externe Zeichenzwischenspeicher verwendet.
-     */
     public void pasteCharacterFromClipboard() {
-        if (currentClickedGlyph == null) {
-            Logger.println("No glyph selected to paste into.");
-            return;
-        }
+        if (currentClickedGlyph == null) return;
 
-        // Prüfe zuerst, ob ein internes Glyph vorhanden ist (Zeichen + Farben)
-        if (internalClipboardGlyph != null) {
-            Logger.println("Internal glyph available, using that instead of system clipboard.");
-            pasteInternalGlyph(); // Nutze die intern gespeicherte Glyphe mit Farben
-            return;
-        }
+        // if (internalClipboardGlyph != null) {
+        //     pasteInternalGlyph();
+        //     return;
+        // }
 
-        // Prüfe als nächstes, ob Farben intern gespeichert sind
-        if (internalClipboardFgIndex != -1 && internalClipboardBgIndex != -1) {
-            // Lese nur das Zeichen aus der Zwischenablage
-            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-            Transferable contents = clipboard.getContents(null);
+        // if (internalClipboardFgIndex != -1 && internalClipboardBgIndex != -1) {
+        //     Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        //     Transferable contents = clipboard.getContents(null);
+        //     if (contents != null && contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+        //         try {
+        //             String pastedText = (String) contents.getTransferData(DataFlavor.stringFlavor);
+        //             if (pastedText != null && !pastedText.isEmpty()) {
+        //                 char charToPaste = pastedText.charAt(0);
+        //                 ResultGlyph combinedGlyph = new ResultGlyph(
+        //                         (int) charToPaste,
+        //                         internalClipboardFgIndex,
+        //                         internalClipboardBgIndex);
+        //                 p.replaceClickedGlyphWithGlyph(combinedGlyph);
+        //                 return;
+        //             }
+        //         } catch (Exception ex) { Logger.println("Clipboard Error: " + ex.getMessage()); }
+        //     }
+        // }
 
-            if (contents != null && contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
-                try {
-                    String pastedText = (String) contents.getTransferData(DataFlavor.stringFlavor);
-                    if (pastedText != null && !pastedText.isEmpty()) {
-                        char charToPaste = pastedText.charAt(0);
-                        // Erstelle ein kombiniertes Glyph und füge es ein
-                        Logger.println("Using character from system clipboard with internally stored colors.");
-                        ResultGlyph combinedGlyph = new ResultGlyph(
-                                (int) charToPaste,
-                                internalClipboardFgIndex,
-                                internalClipboardBgIndex);
-                        p.replaceClickedGlyphWithGlyph(combinedGlyph);
-                        return;
-                    }
-                } catch (Exception ex) {
-                    Logger.println("Error accessing system clipboard: " + ex.getMessage());
-                }
-            }
-        }
-
-        // Fallback: Nutze nur den externen Zwischenspeicher
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         Transferable contents = clipboard.getContents(null);
-
         if (contents != null && contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
             try {
                 String pastedText = (String) contents.getTransferData(DataFlavor.stringFlavor);
                 if (pastedText != null && !pastedText.isEmpty()) {
-                    char charToPaste = pastedText.charAt(0);
-                    Logger.println("Pasting external character '" + charToPaste + "' (keeping current colors).");
-                    p.replaceClickedGlyph(charToPaste); // Call the method in ProcessingCore
-                } else {
-                    Logger.println("System clipboard is empty or contains no text.");
+                    p.replaceClickedGlyph(pastedText.charAt(0));
                 }
-            } catch (Exception ex) {
-                Logger.println("Error pasting from system clipboard: " + ex.getMessage());
-                ex.printStackTrace();
-            }
-        } else {
-            Logger.println("System clipboard does not contain text.");
+            } catch (Exception ex) { ex.printStackTrace(); }
         }
     }
 
-    /**
-     * Pastes the internally copied glyph (char + colors). (Cmd+Alt+V)
-     */
     public void pasteInternalGlyph() {
-        if (currentClickedGlyph == null) {
-            Logger.println("No glyph selected to paste into.");
-            return;
-        }
+        if (currentClickedGlyph == null) return;
         if (internalClipboardGlyph != null) {
-            Logger.println("Pasting internal glyph: " + glyphToString(internalClipboardGlyph));
-            // Call the method in ProcessingCore to replace the entire glyph
             p.replaceClickedGlyphWithGlyph(internalClipboardGlyph);
-            // UI update happens automatically because replaceClickedGlyphWithGlyph calls
-            // updateClickedInfo
-        } else {
-            Logger.println("Internal glyph clipboard is empty.");
         }
     }
 
-    /**
-     * Pastes the internally copied colors only. (Cmd+Shift+V)
-     */
     public void pasteInternalColors() {
-        if (currentClickedGlyph == null) {
-            Logger.println("No glyph selected to paste colors onto.");
-            return;
-        }
+        if (currentClickedGlyph == null) return;
         if (internalClipboardFgIndex != -1 && internalClipboardBgIndex != -1) {
-            Logger.println(
-                    "Pasting internal colors: FG=" + internalClipboardFgIndex + ", BG=" + internalClipboardBgIndex);
-            // Call the method in ProcessingCore to replace colors
-            p.replaceClickedGlyphColors(internalClipboardFgIndex, internalClipboardBgIndex); // This line requires the
-                                                                                             // method in ProcessingCore
-            // UI update happens automatically because replaceClickedGlyphColors calls
-            // updateClickedInfo
-        } else {
-            Logger.println("Internal color clipboard is empty.");
+            p.replaceClickedGlyphColors(internalClipboardFgIndex, internalClipboardBgIndex);
         }
     }
 
-    /**
-     * Updates the selection area information in the control panel.
-     * Shows the position and dimensions of the current selection area.
-     * 
-     * @param hasSelection Whether there is an active selection
-     * @param startX       The starting X coordinate of the selection
-     * @param startY       The starting Y coordinate of the selection
-     * @param endX         The ending X coordinate of the selection
-     * @param endY         The ending Y coordinate of the selection
-     */
     public void updateSelectionAreaInfo(boolean hasSelection, int startX, int startY, int endX, int endY) {
         if (hasSelection && startX >= 0 && startY >= 0 && endX >= 0 && endY >= 0) {
-            // Normalize coordinates to find top-left corner and dimensions
             int minX = Math.min(startX, endX);
             int minY = Math.min(startY, endY);
             int maxX = Math.max(startX, endX);
             int maxY = Math.max(startY, endY);
-
-            int width = maxX - minX + 1; // +1 because it's inclusive
-            int height = maxY - minY + 1; // +1 because it's inclusive
-
-            // Update labels with selection information
-            selectionXPosLabel.setText(String.format("%d,%d", minX, minY));
-            selectionWidthLabel.setText(String.format("%d,%d", width, height));
-
-            Logger.println("Selection Area: (" + minX + "," + minY + ") Width=" + width + " Height=" + height);
+            int width = maxX - minX + 1;
+            int height = maxY - minY + 1;
+            selectionXPosLabel.setText(minX + "," + minY);
+            selectionWidthLabel.setText(width + "x" + height);
         } else {
-            // No selection, clear the information
             selectionXPosLabel.setText("-,-");
-            selectionWidthLabel.setText("-,-");
+            selectionWidthLabel.setText("-x-");
         }
     }
 
-    /**
-     * Helper to format glyph info for logging.
-     */
-    private String glyphToString(ResultGlyph g) {
-        if (g == null)
-            return "null";
-        String charStr = Character.isDefined(g.codePoint) && !Character.isISOControl(g.codePoint)
-                ? "'" + new String(Character.toChars(g.codePoint)) + "'"
-                : "U+" + String.format("%04X", g.codePoint);
-        return String.format("%s (FG:%d, BG:%d)", charStr, g.fgIndex, g.bgIndex);
-    }
-
-    /**
-     * Updates the enabled state of paste buttons based on internal clipboard
-     * content.
-     */
     private void updatePasteButtonStates() {
-        // Eine Zelle ist "ausgewählt", wenn entweder eine einzelne Zelle angeklickt
-        // wurde
-        // oder wenn eine gültige Selektion vorhanden ist
         boolean glyphSelected = currentClickedGlyph != null || useSelectionForActions();
         boolean internalGlyphAvailable = internalClipboardGlyph != null;
         boolean internalColorsAvailable = internalClipboardFgIndex != -1 && internalClipboardBgIndex != -1;
@@ -827,37 +626,21 @@ public class ControlPanel extends JFrame implements ActionListener {
         pasteGlyphIntButton.setEnabled(glyphSelected && internalGlyphAvailable);
         pasteColorsButton.setEnabled(glyphSelected && internalColorsAvailable);
         pasteCharExtButton.setEnabled(glyphSelected);
-        flipColorsButton.setEnabled(glyphSelected); // Enable/disable flip button based on selection
-        flipGlyphButton.setEnabled(glyphSelected); // Enable/disable flip glyph button based on selection
-        transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on
-                                                       // selection
+        flipColorsButton.setEnabled(glyphSelected);
+        flipGlyphButton.setEnabled(glyphSelected);
+        transparentBgButton.setEnabled(glyphSelected);
     }
 
-    /**
-     * Aktualisiert die Labels und das Vorschaufenster für die zuletzt angeklickte
-     * Zelle.
-     */
-    public void updateClickedInfo(int x, int y, ResultGlyph glyph, int[] colorPalette,
-            Map<Integer, Long> asciiPatterns) {
+    public void updateClickedInfo(int x, int y, ResultGlyph glyph, int[] colorPalette, Map<Integer, Long> asciiPatterns) {
         this.currentClickedGlyph = glyph;
-        // this.currentColorPalette = colorPalette;
         this.currentAsciiPatterns = asciiPatterns;
-
         boolean glyphSelected = (x >= 0 && y >= 0 && glyph != null);
-        Logger.println("updateClickedInfo: glyphSelected=" + glyphSelected);
 
         if (glyphSelected) {
-            clickedXPosLabel.setText(String.valueOf(x));
-            clickedYPosLabel.setText(String.valueOf(y));
-            String charDisplay = Character.isDefined(glyph.codePoint) && !Character.isISOControl(glyph.codePoint)
-                    ? "'" + new String(Character.toChars(glyph.codePoint)) + "' "
-                    : "";
-            clickedCodepointLabel
-                    .setText(String.format("%s%d (U+%04X)", charDisplay, glyph.codePoint, glyph.codePoint));
+            clickedPosLabel.setText(x + "," + y);
+            clickedCodepointLabel.setText(String.format("U+%04X", glyph.codePoint));
             clickedFgIndexLabel.setText(String.valueOf(glyph.fgIndex));
             clickedBgIndexLabel.setText(String.valueOf(glyph.bgIndex));
-
-            // Add alpha value display - extract alpha from the color if available
             if (colorPalette != null && glyph.bgIndex >= 0 && glyph.bgIndex < colorPalette.length) {
                 int alpha = (colorPalette[glyph.bgIndex] >> 24) & 0xFF;
                 clickedAlphaLabel.setText(String.valueOf(alpha));
@@ -865,73 +648,39 @@ public class ControlPanel extends JFrame implements ActionListener {
                 clickedAlphaLabel.setText("-");
             }
         } else {
-            clickedXPosLabel.setText("-");
-            clickedYPosLabel.setText("-");
-            clickedCodepointLabel.setText("-");
-            clickedFgIndexLabel.setText("-");
-            clickedBgIndexLabel.setText("-");
+            clickedPosLabel.setText("-,-");
+            clickedCodepointLabel.setText("-"); clickedFgIndexLabel.setText("-");
+            clickedBgIndexLabel.setText("-"); clickedAlphaLabel.setText("-");
         }
 
         copyGlyphButton.setEnabled(glyphSelected);
         copyColorsButton.setEnabled(glyphSelected);
-        flipColorsButton.setEnabled(glyphSelected); // Enable/disable flip button based on selection
-        flipGlyphButton.setEnabled(glyphSelected); // Enable/disable flip glyph button based on selection
-        transparentBgButton.setEnabled(glyphSelected); // Enable/disable transparent background button based on
-                                                       // selection
-
+        flipColorsButton.setEnabled(glyphSelected);
+        flipGlyphButton.setEnabled(glyphSelected);
+        transparentBgButton.setEnabled(glyphSelected);
         updatePasteButtonStates();
-
-        if (glyphPreviewPanel != null) {
-            glyphPreviewPanel.repaint();
-        }
+        if (glyphPreviewPanel != null) glyphPreviewPanel.repaint();
     }
 
-    /**
-     * Aktualisiert die Labels für die Zelle unter dem Mauszeiger (Hover).
-     * (Updates Column 3 of the table)
-     *
-     * @param x     Die X-Koordinate der Zelle (-1 wenn keine Auswahl).
-     * @param y     Die Y-Koordinate der Zelle (-1 wenn keine Auswahl).
-     * @param glyph Das ResultGlyph-Objekt der Zelle (null wenn keine Auswahl).
-     */
     public void updateSelectionInfo(int x, int y, ResultGlyph glyph) {
         if (x >= 0 && y >= 0 && glyph != null) {
-            hoverXPosLabel.setText(String.valueOf(x));
-            hoverYPosLabel.setText(String.valueOf(y));
-            hoverCodepointLabel.setText(String.format("U+%04X", glyph.codePoint));
+            hoverPosLabel.setText(x + "," + y);
+            hoverCodepointLabel.setText(String.format("%04X", glyph.codePoint));
             hoverFgIndexLabel.setText(String.valueOf(glyph.fgIndex));
             hoverBgIndexLabel.setText(String.valueOf(glyph.bgIndex));
-            hoverAlphaLabel.setText(String.valueOf(glyph.alpha)); // Assuming alpha is part of ResultGlyph
         } else {
-            hoverXPosLabel.setText("-");
-            hoverYPosLabel.setText("-");
-            hoverCodepointLabel.setText("-");
-            hoverFgIndexLabel.setText("-");
+            hoverPosLabel.setText("-,-");
+            hoverCodepointLabel.setText("-"); hoverFgIndexLabel.setText("-");
             hoverBgIndexLabel.setText("-");
-            hoverAlphaLabel.setText("-");
         }
     }
 
-    /**
-     * Aktualisiert den ausgewählten Skalierungsfaktor im UI, ohne einen ActionEvent
-     * auszulösen.
-     * Wird von ProcessingCore aufgerufen, wenn die Skala per Tastatur/Mausrad
-     * geändert wird.
-     *
-     * @param scale Der aktuelle Skalierungsfaktor (1-8)
-     */
     public void updateScaleSelector(int scale) {
         if (scale >= 1 && scale <= 8 && scaleSelector.getSelectedIndex() != (scale - 1)) {
             ActionListener[] listeners = scaleSelector.getActionListeners();
-            for (ActionListener l : listeners) {
-                scaleSelector.removeActionListener(l);
-            }
-
+            for (ActionListener l : listeners) scaleSelector.removeActionListener(l);
             scaleSelector.setSelectedIndex(scale - 1);
-
-            for (ActionListener l : listeners) {
-                scaleSelector.addActionListener(l);
-            }
+            for (ActionListener l : listeners) scaleSelector.addActionListener(l);
         }
     }
 
@@ -944,20 +693,13 @@ public class ControlPanel extends JFrame implements ActionListener {
     }
 
     private void append(String message) {
-        if (logArea == null)
-            return;
+        if (logArea == null) return;
         logArea.append(message + "\n");
     }
 
-    public static ControlPanel get() {
-        return Instance;
-    }
-
+    public static ControlPanel get() { return Instance; }
     public static void log(String message) {
-        if (Instance != null) {
-            Instance.appendLog(message);
-        } else {
-            System.out.println("Log (ControlPanel not ready): " + message);
-        }
+        if (Instance != null) Instance.appendLog(message);
+        else System.out.println("Log: " + message);
     }
 }

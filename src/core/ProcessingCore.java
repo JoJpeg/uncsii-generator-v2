@@ -13,6 +13,7 @@ import processing.core.PGraphics;
 import processing.core.PImage;
 import processing.event.KeyEvent;
 import processing.event.MouseEvent;
+import resources.ResourceLoader;
 import ui.ControlPanel;
 
 /**
@@ -51,7 +52,6 @@ public class ProcessingCore extends PApplet {
     public static final int DEFAULT_DISPLAY_SCALE = 2;
 
     // File paths
-    public static final String DEFAULT_FONT_PATH = "/Users/jonaseschner/IdeaProjects/unscii-generator/src/resources/unscii-8.ttf";
     public static final String DEFAULT_OUTPUT_PATH = "output.usc";
 
     // Image conversion states
@@ -78,7 +78,7 @@ public class ProcessingCore extends PApplet {
     // --- Font Pattern Variables ---
     private GlyphPatternGenerator patternGenerator;
     public Map<Integer, Long> asciiPatterns;
-    private String fontPath = DEFAULT_FONT_PATH;
+    private String fontPath = ResourceLoader.getTempResourcePath(ResourceLoader.class, "unscii-8.ttf");
     private PFont unscii;
 
     // --- Image & Conversion Variables ---
@@ -137,6 +137,7 @@ public class ProcessingCore extends PApplet {
 
     @Override
     public void setup() {
+        Logger.println("Font path: " + fontPath);
         // Initialize display variables
         drawX = (width - drawW) / 2;
         drawY = (height - drawH) / 2;
@@ -154,12 +155,13 @@ public class ProcessingCore extends PApplet {
         new ColorPalette(this);
         // Setup application
         // ColorPalette.getColors() = ColorPalette.getColors().getColors();
-        initializeDefaultPaths();
         generateFontPatterns();
     }
 
     @Override
     public void draw() {
+        //TODO: dont draw when not needed.
+
         image(getCheckerBoardImage(), 0, 0, width, height);
 
         // When image is processing, show a loading indicator
@@ -205,12 +207,7 @@ public class ProcessingCore extends PApplet {
      */
     private void initializeDefaultPaths() {
         // Example image paths - would be better to make this configurable
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/Ambient Mean/Xorm/Hypno Flute/renders/visual ready/16_9/hypno in flower.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/Ambient Mean/Xorm/Hypno Flute/renders/visual ready/16_9/crow spottet.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/Ambient Mean/Xorm/Hypno Flute/renders/visual ready/16_9/xorm logo.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/JoJpeg/Fun Stuff/Dirigent/Dirigent Xorm Intro 3.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/JoJpeg/Fun Stuff/Dirigent/Dirigent Font Test.png";
-        imagePath = "/Users/jonaseschner/Dropbox (Privat)/JoJpeg/Fun Stuff/Dirigent/Dirigent Xorm Screen 1.png";
+
         outputPath = "Dirigent Xorm Screen 1.usc";
     }
 
@@ -972,14 +969,6 @@ public class ProcessingCore extends PApplet {
     }
 
     /**
-     * Hilfsmethode zum Anpassen des Alpha-Wertes einer Farbe
-     */
-    private int adjustAlpha(int color, int alphaValue) {
-        // Wir behalten RGB bei und ersetzen nur den Alpha-Kanal
-        return (color & 0x00FFFFFF) | (alphaValue << 24);
-    }
-
-    /**
      * Handle hover highlight in result view
      */
     private void handleHoverHighlight(int gridOriginX, int gridOriginY, int cellWidth, int cellHeight,
@@ -1350,8 +1339,9 @@ public class ProcessingCore extends PApplet {
     public void keyPressed(KeyEvent event) {
         // Check if controlPanel exists and is in EDIT state
         if (controlPanel == null || controlPanel.getPanelState() != ControlPanel.PanelState.EDIT) {
-            return;
+            // return;
         }
+
 
         char keyChar = event.getKey();
         boolean isMeta = event.isMetaDown(); // Cmd on macOS
@@ -1365,6 +1355,11 @@ public class ProcessingCore extends PApplet {
         // boolean handled = false; // Flag to check if we handled the shortcut
 
         // --- Handle Modifier Shortcuts ---
+        Logger.println("Key pressed: " + keyChar +
+                " | Meta: " + isMeta +
+                " | Ctrl: " + isCtrl +
+                " | Shift: " + isShift +
+                " | Alt: " + isAlt);
         if (primaryModifier && !isAlt) { // Cmd/Ctrl pressed (without Alt)
             char lowerKeyChar = Character.toLowerCase(keyChar);
 
@@ -1394,13 +1389,15 @@ public class ProcessingCore extends PApplet {
             } else if (lowerKeyChar == 'v') {
                 if (isShift) {
                     // Cmd/Ctrl + Shift + V -> Paste Colors
+                    // controlPanel.pasteInternalColors();
+                    controlPanel.pasteInternalGlyph();
+
                     Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Shift+V detected.");
-                    controlPanel.pasteInternalColors();
                     // handled = true;
                 } else {
                     // Cmd/Ctrl + V -> Paste Char (External)
-                    Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+V detected.");
                     controlPanel.pasteCharacterFromClipboard();
+                    Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+V detected.");
                     // handled = true;
                 }
             } else if (lowerKeyChar == 'f') {
@@ -1413,12 +1410,15 @@ public class ProcessingCore extends PApplet {
             }
         } else if (primaryModifier && isAlt && !isShift) { // Cmd/Ctrl + Alt pressed (without Shift)
             char lowerKeyChar = Character.toLowerCase(keyChar);
-            if (lowerKeyChar == 'v') {
+            if (lowerKeyChar == 'v' || lowerKeyChar == '√') {
                 // Cmd/Ctrl + Alt + V -> Paste Glyph (Internal)
                 Logger.println("ProcessingCore: Shortcut Cmd/Ctrl+Alt+V detected.");
                 controlPanel.pasteInternalGlyph();
                 // handled = true;
             }
+        }
+        else{
+            handleCharacterKey(keyChar);
         }
     }
 
@@ -1839,7 +1839,7 @@ public class ProcessingCore extends PApplet {
      */
     public void centerImage() {
         drawX = (width - drawW) / 2;
-        drawY = (height - drawH) / 2;
+        drawY = (height - drawH) / 2 ;
         Logger.println("Image centered in view");
     }
 
