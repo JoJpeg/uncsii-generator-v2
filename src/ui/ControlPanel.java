@@ -2,7 +2,6 @@ package ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -11,8 +10,8 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
-import java.awt.TextArea;
 import java.awt.Toolkit;
+import javax.swing.JTextArea;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
@@ -47,14 +46,17 @@ import logger.Logger;
 public class ControlPanel extends JFrame implements ActionListener {
 
     private final ProcessingCore p;
+    private BatchManager batchManager;
 
     // Buttons & Controls
-    private JButton loadButton;
+    private JButton openButton;
     private JButton toggleViewButton;
-    private JButton saveButton;
+    private JButton exportButton;
     private JButton restartButton;
+    private JButton batchButton;
+    private JButton saveProjectButton;
     private JComboBox<String> scaleSelector;
-    private TextArea logArea;
+    private JTextArea logArea;
 
     // Undo/Redo-Buttons
     private JButton undoButton;
@@ -187,6 +189,9 @@ public class ControlPanel extends JFrame implements ActionListener {
             throw new IllegalArgumentException("ProcessingCore cannot be null");
         }
         this.p = core;
+        this.batchManager = new BatchManager(this, core);
+
+        batchManager.setVisible(true);
 
         setTitle("Controls");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -200,19 +205,24 @@ public class ControlPanel extends JFrame implements ActionListener {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1.0;
-        gbc.insets = new Insets(1, 1, 1, 1);
-
-        // Row 1: File Actions
-        loadButton = createButton("Load", "Load File (L)");
+        openButton = createButton("Open", "Load File (L)");
         toggleViewButton = createButton("Image", "Toggle View (S)");
-        saveButton = createButton("Export", "Export Output (P)");
+        exportButton = createButton("Export", "Export Output (P)");
         restartButton = createButton("Recalc", "Restart Processing (R)");
+        
+        batchButton = createButton("Batch", "Open Batch Manager");
+        saveProjectButton = createButton("Save Project", "Save Project");
 
-        JPanel fileRow = new JPanel(new GridLayout(1, 4, 3, 0));
-        fileRow.add(loadButton);
-        fileRow.add(saveButton);
+        JPanel fileRow = new JPanel(new GridLayout(1, 6, 3, 0));
+        fileRow.add(openButton);
+        fileRow.add(exportButton);
+        fileRow.add(saveProjectButton);
+        fileRow.add(batchButton);
         fileRow.add(restartButton);
         fileRow.add(toggleViewButton);
+
+        gbc.gridx = 0; gbc.gridy = 0;
+        toolbarPanel.add(fileRow, gbc);
 
         gbc.gridx = 0; gbc.gridy = 0;
         toolbarPanel.add(fileRow, gbc);
@@ -382,8 +392,9 @@ public class ControlPanel extends JFrame implements ActionListener {
         mainPanel.add(centerPanel, BorderLayout.CENTER);
 
         // --- Log ---
-        logArea = new TextArea(4, 30);
+        logArea = new JTextArea(4, 30);
         logArea.setEditable(false);
+
         logArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
         logArea.setBackground(new Color(30, 30, 30));
         logArea.setForeground(Color.LIGHT_GRAY);
@@ -439,12 +450,16 @@ public class ControlPanel extends JFrame implements ActionListener {
         return b;
     }
 
+    public void updateForBatchSelection(String name) {
+        setTitle("Controls - " + name);
+    }
+
     public void setState(PanelState state) {
         this.state = state;
         boolean editEnabled = (state == PanelState.EDIT);
-        loadButton.setEnabled(true);
+        openButton.setEnabled(true);
         toggleViewButton.setEnabled(editEnabled);
-        saveButton.setEnabled(editEnabled);
+        exportButton.setEnabled(editEnabled);
         restartButton.setEnabled(editEnabled);
         scaleSelector.setEnabled(editEnabled);
         undoButton.setEnabled(editEnabled);
@@ -484,10 +499,87 @@ public class ControlPanel extends JFrame implements ActionListener {
         try {
             Object source = e.getSource();
             if (source == toggleViewButton) p.keyPressed('s');
-            else if (source == saveButton) p.keyPressed('p');
+            else if (source == exportButton) p.keyPressed('p');
             else if (source == restartButton) p.keyPressed('r');
             else if (source == scaleSelector) p.keyPressed((char) ('0' + scaleSelector.getSelectedIndex() + 1));
-            else if (source == loadButton) p.keyPressed('l');
+            else if (source == openButton) {
+                if (batchManager.isVisible() || !batchManager.getProject().getImgs().isEmpty()) {
+                      int result = javax.swing.JOptionPane.showOptionDialog(this, 
+                          "Batch active. Add to batch or discard?", 
+                          "Load Image", 
+                          javax.swing.JOptionPane.YES_NO_CANCEL_OPTION, 
+                          javax.swing.JOptionPane.QUESTION_MESSAGE, 
+                          null, 
+                          new String[]{"Add to Batch", "Discard Batch", "Cancel"}, 
+                          "Add to Batch");
+                      
+                      if (result == 0) { 
+                           batchManager.addImagesTrigger();
+                      } else if (result == 1) { 
+                           int saveResult = javax.swing.JOptionPane.showConfirmDialog(this, "Save project before discarding?", "Save Project", javax.swing.JOptionPane.YES_NO_OPTION);
+                           if (saveResult == javax.swing.JOptionPane.YES_OPTION) {
+                               batchManager.saveProject();
+                           }
+                           batchManager.setProject(new core.Project());
+                           batchManager.setVisible(false);
+                           p.keyPressed('l');
+                      }
+                 } else {
+                     p.keyPressed('l');
+                 }
+            } else if (source == batchButton) {
+                 if (batchManager.isVisible() || !batchManager.getProject().getImgs().isEmpty()) {
+                      int result = javax.swing.JOptionPane.showOptionDialog(this, 
+                          "Batch is currently active. Add new images or discard current batch?", 
+                          "New Batch", 
+                          javax.swing.JOptionPane.YES_NO_CANCEL_OPTION, 
+                          javax.swing.JOptionPane.QUESTION_MESSAGE, 
+                          null, 
+                          new String[]{"Add to Batch", "Discard & New", "Cancel"}, 
+                          "Add to Batch");
+                       if(result == 0) {
+                           batchManager.setVisible(true);
+                           batchManager.addImagesTrigger();
+                       } else if (result == 1) {
+                            int saveResult = javax.swing.JOptionPane.showConfirmDialog(this, "Save project before discarding?", "Save Project", javax.swing.JOptionPane.YES_NO_OPTION);
+                            if (saveResult == javax.swing.JOptionPane.YES_OPTION) {
+                                batchManager.saveProject();
+                            }
+                            batchManager.setProject(new core.Project());
+                            batchManager.setVisible(true);
+                            batchManager.addImagesTrigger();
+                       }
+                 } else {
+                     batchManager.setVisible(true);
+                     batchManager.addImagesTrigger();
+                 }
+            } else if (source == saveProjectButton) {
+                 if (batchManager.isVisible() || !batchManager.getProject().getImgs().isEmpty()) {
+                     batchManager.saveProject();
+                 } else {
+                     java.awt.FileDialog fd = new java.awt.FileDialog(this, "Save Project", java.awt.FileDialog.SAVE);
+                     fd.setFile("*.uscP");
+                     fd.setVisible(true);
+                     
+                     if (fd.getFile() != null) {
+                         java.io.File file = new java.io.File(fd.getDirectory(), fd.getFile());
+                         if (!file.getName().endsWith(".uscP")) {
+                             file = new java.io.File(file.getAbsolutePath() + ".uscP");
+                         }
+                         String path = p.getImagePath();
+                         if (path != null) {
+                             core.Project tempProj = new core.Project();
+                             core.ImageModel model = new core.ImageModel(path);
+                             if(p.resultGrid != null) model.setGridData(p.resultGrid);
+                             model.addPreference("scale", String.valueOf(usePreference));
+                             tempProj.addImage(new java.io.File(path).getName(), model);
+                             core.SaveFileManager.saveProject(tempProj, file);
+                         } else {
+                             logger.Logger.println("No image to save.");
+                         }
+                     }
+                 }
+            }
             else if (source == undoButton) p.undoAction();
             else if (source == redoButton) p.redoAction();
             else if (source == centerImageButton) p.centerImage();

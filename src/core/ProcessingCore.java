@@ -1,6 +1,5 @@
 package core;
 
-import java.awt.Color;
 import java.io.File;
 import java.util.HashSet;
 import java.util.Map;
@@ -65,7 +64,10 @@ public class ProcessingCore extends PApplet {
     // ========== INSTANCE VARIABLES ==========
 
     // --- Command Manager für Undo/Redo ---
-    private CommandManager commandManager = new CommandManager();
+    public CommandManager commandManager = new CommandManager();
+
+    // --- Project ---
+    public Project project;
 
     // --- Display Variables ---
     private int displayAreaWidth = DEFAULT_DISPLAY_AREA_WIDTH;
@@ -88,6 +90,11 @@ public class ProcessingCore extends PApplet {
     public int gridWidth;
     public int gridHeight;
     private String imagePath;
+    
+    public String getImagePath() {
+        return imagePath;
+    }
+
     private String outputPath = DEFAULT_OUTPUT_PATH;
     // public int[] ColorPalette.getColors(); // Color palette (256 colors)
     private ImageLoadingState imageLoadingState = ImageLoadingState.NONE;
@@ -137,6 +144,8 @@ public class ProcessingCore extends PApplet {
 
     @Override
     public void setup() {
+        project = new Project();
+
         Logger.println("Font path: " + fontPath);
         // Initialize display variables
         drawX = (width - drawW) / 2;
@@ -149,7 +158,6 @@ public class ProcessingCore extends PApplet {
         textAlign(CENTER, CENTER);
         text("Unscii Generator", width / 2, height / 2);
         noSmooth(); // Important for pixel-perfect display
-
         // Initialize control panel
         initControlPanel();
         new ColorPalette(this);
@@ -202,15 +210,8 @@ public class ProcessingCore extends PApplet {
         }
     }
 
-    /**
-     * Initialize default file paths
-     */
-    private void initializeDefaultPaths() {
-        // Example image paths - would be better to make this configurable
 
-        outputPath = "Dirigent Xorm Screen 1.usc";
-    }
-
+    
     /**
      * Generate font patterns for ASCII art conversion
      */
@@ -255,7 +256,7 @@ public class ProcessingCore extends PApplet {
     /**
      * Loads an image from the file system
      */
-    public void loadImage() {
+    public void loadFile() {
         saveCurrentSelection(); // Save the current selection before loading a new image
 
         File imageFile = FileHandler.loadFile("Select Image");
@@ -274,6 +275,34 @@ public class ProcessingCore extends PApplet {
         }
 
         imagePath = imageFile.getAbsolutePath();
+
+        // check file ending
+        
+        String fileEnding = "";
+        int dotIndex = imagePath.lastIndexOf('.');
+        if (dotIndex >= 0) {
+            fileEnding = imagePath.substring(dotIndex + 1).toLowerCase();
+        }
+
+        if(fileEnding == "usc" || fileEnding == "usc2") {
+            //TODO: load an exported usc file
+            controlPanel.setState(ControlPanel.PanelState.SETUP);
+            return;
+        }
+        else if (fileEnding.equals("uscp")){
+            Logger.println("Loading project file: " + imagePath);
+
+ 
+            Project p = SaveFileManager.loadProject(imageFile);
+            if(p != null){
+                this.project = p;
+            }
+            controlPanel.setState(ControlPanel.PanelState.EDIT);
+             //check if its a batch project 
+
+            return;
+        }
+        
         loadAndProcessImage(imagePath);
 
         if (imageLoadingState == ImageLoadingState.ERROR) {
@@ -290,13 +319,17 @@ public class ProcessingCore extends PApplet {
     /**
      * Load and process an image for conversion
      */
-    void loadAndProcessImage(String path) {
+    public void loadAndProcessImage(String path) {
+        loadAndProcessImage(path, null);
+    }
+
+    public ResultGlyph[][] loadAndProcessImage(String path, ResultGlyph[][] existingGrid) {
         try {
             // Early exit if path is null or empty
             if (path == null || path.isEmpty()) {
                 Logger.println("Invalid image path: null or empty");
                 imageLoadingState = ImageLoadingState.ERROR;
-                return;
+                return null;
             }
 
             // Activate image processing flag to manage render state
@@ -317,7 +350,7 @@ public class ProcessingCore extends PApplet {
                 Logger.println("Error loading image: " + path);
                 imageLoadingState = ImageLoadingState.ERROR;
                 isImageProcessing = false; // Important: Reset flag on error
-                return;
+                return null;
             }
 
             // Prüfen, ob Bild Alpha-Kanal hat und sicherstellen, dass Schwarze Pixel nicht
@@ -358,7 +391,7 @@ public class ProcessingCore extends PApplet {
                 Logger.println("Image too small after resizing/cropping for an 8x8 grid.");
                 imageLoadingState = ImageLoadingState.ERROR;
                 isImageProcessing = false; // Important: Reset flag on error
-                return;
+                return null;
             }
 
             // Create a new result grid array
@@ -367,7 +400,12 @@ public class ProcessingCore extends PApplet {
             Logger.println("Starting ASCII conversion...");
             long startTime = System.currentTimeMillis();
 
-            generateAsciiArtExact();
+            if (existingGrid != null && existingGrid.length == gridHeight && existingGrid[0].length == gridWidth) {
+                Logger.println("Restoring existing grid data...");
+                resultGrid = existingGrid;
+            } else {
+                generateAsciiArtExact();
+            }
 
             long endTime = System.currentTimeMillis();
             Logger.println("Conversion finished in " + (endTime - startTime) + " ms.");
@@ -388,7 +426,6 @@ public class ProcessingCore extends PApplet {
                 controlPanel.updateSelectionInfo(-1, -1, null);
             }
 
-            // CRITICAL FIX: Always reset the processing flag when done
             isImageProcessing = false;
         } catch (Exception e) {
             Logger.println("Error during image processing: " + e.getMessage());
@@ -397,9 +434,9 @@ public class ProcessingCore extends PApplet {
             imageLoadingState = ImageLoadingState.ERROR;
             resultGrid = null;
         } finally {
-            // Ensure the processing flag is always reset, even if we missed some case
             isImageProcessing = false;
         }
+        return resultGrid;
     }
 
     /**
@@ -1458,15 +1495,21 @@ public class ProcessingCore extends PApplet {
                 return;
             }
             outputPath = outputFile.getAbsolutePath();
-            FileHandler.saveResult(outputPath, this);
+            FileHandler.exportCurrent(outputPath, this);
         } else if (k >= '1' && k <= '8') {
             int targetScale = k - '0';
             setDisplayScale(targetScale);
         } else if (lowerK == 'r') {
             reloadCurrentImage();
         } else if (lowerK == 'l') {
-            loadImage();
+            //check for file ending. 
+
+            loadFile();
         }
+    }
+
+    public void exportFile(String path) {
+        FileHandler.exportCurrent(path, this);
     }
 
     /**

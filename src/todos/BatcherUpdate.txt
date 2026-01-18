@@ -1,0 +1,29 @@
+Batcher Update:
+
+A Batch conversion system to export convert multiple images at once. The following is the UX:
+We press a "Batch" button in the header of the control panel (next to the save button) 
+this opens a file manager in which we can select multiple images to batch convert. The file dialogue filters for allowed images types (all that processing allows)
+now a new window opens (Batch Manager) the batch manager shows a clickable list of all images to convert (only image names).
+also it has a button to "export all" images and one to save the project file (read more under "project file")
+when one of those entries is clicked, you can edit image specific things (edit chars, change algorithm). The inspector shows the name of the image you are currently editing as well as all the preferences specific to the selected image. 
+
+if we press "load" while a batch is currently active, a dialoge asks if the image should be added to the batch or if the batch should be discarded. if the "discard" option is choosen, ask for saving or not. The SAME happens when you press the batch button while a batch is currntly active. 
+
+
+
+Todo: 
+- add a "Batch" button to the mainpanel next to the "export" button
+- create a Batch Manager Window that shows a clickable list of the names of the selected images
+- make sure the ControlPanel updates its Labels as soon as a new image is selected in the Batch Manager
+- add 
+
+Project file:
+a Project file stores changes made to an "unscii image". eg. Changed Glyphes, as well as set preferences. it can hold one or more "unsci image" projects allowing the saving of batch projects. The structure is {imgs: {img: data:{filepath, preferences, usc2 export}, img: data:{filepath, preferences, usc2 export}}. 
+
+The file is a gson generated gson. 
+TODO: 
+- create a UnsciiImageModel class that stores all made changes and settings. 
+- create a SaveFileManager class that writes and reads those files 
+- add a "save" button to the main panel
+- add a "save" button to the batch manager panel
+

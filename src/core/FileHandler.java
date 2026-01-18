@@ -31,6 +31,32 @@ public class FileHandler {
         return getFile(message, FileDialog.SAVE);
     }
 
+    public static String getSaveFolder(String message) {
+        Frame parentFrame = null;
+        FileDialog fileDialog = new FileDialog(parentFrame, message, FileDialog.SAVE);
+
+        // Set initial directory based on operation type
+        if (saveFileWorkPath != null) {
+            File dir = new File(saveFileWorkPath).getParentFile();
+            if (dir != null && dir.exists()) {
+                fileDialog.setDirectory(dir.getAbsolutePath());
+            }
+        }
+
+        // For macOS, set system property to use native file dialog
+        // System.setProperty("apple.awt.fileDialogForDirectories", "true"); // If
+        // needed for directories
+        fileDialog.setVisible(true);
+
+        String directory = fileDialog.getDirectory();
+
+        if (directory != null) {
+            return directory;
+        } else {
+            return null;
+        }
+    }
+
     // get a file the Java way using the system's native file chooser
     public static File getFile(String message, int mode) {
         // mode = 0 for save, 1 for load
@@ -99,14 +125,13 @@ public class FileHandler {
         setLastAsWorkingDirectory(false); // Default to save path for backward compatibility
     }
 
-    public static void saveResult(String filePath, ProcessingCore p) {
-
+    public static void exportCurrent(String filePath, ProcessingCore p) {
         // make the filename consistent
         String withoutFileEnding = filePath.split("\\.")[0];
         String fileEnding = "usc2";
         filePath = withoutFileEnding + "." + fileEnding;
         if (p.resultGrid == null) {
-            Logger.println("No result to save.");
+            Logger.println("Nothing to save.");
             return;
         }
         // Use full grid dimensions initially
