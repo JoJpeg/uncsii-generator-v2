@@ -22,8 +22,6 @@ a Project file stores changes made to an "unscii image". eg. Changed Glyphes, as
 
 The file is a gson generated gson. 
 TODO: 
-- create a UnsciiImageModel class that stores all made changes and settings. 
-- create a SaveFileManager class that writes and reads those files 
-- add a "save" button to the main panel
-- add a "save" button to the batch manager panel
+- allow for per-file selections or cropping. 
+
 

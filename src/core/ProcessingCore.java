@@ -89,7 +89,7 @@ public class ProcessingCore extends PApplet {
     public ResultGlyph[][] resultGrid;
     public int gridWidth;
     public int gridHeight;
-    private String imagePath;
+    public String imagePath;
     
     public String getImagePath() {
         return imagePath;
@@ -259,7 +259,7 @@ public class ProcessingCore extends PApplet {
     public void loadFile() {
         saveCurrentSelection(); // Save the current selection before loading a new image
 
-        File imageFile = FileHandler.loadFile("Select Image");
+        File imageFile = FileHandler.loadFile("Select Project or Image");
         if (imageFile == null) {
             Logger.println("File selection canceled.");
 
@@ -286,6 +286,7 @@ public class ProcessingCore extends PApplet {
 
         if(fileEnding == "usc" || fileEnding == "usc2") {
             //TODO: load an exported usc file
+            javax.swing.JOptionPane.showMessageDialog(null, "Loading .usc files is not yet implemented.", "Not Implemented", javax.swing.JOptionPane.INFORMATION_MESSAGE);
             controlPanel.setState(ControlPanel.PanelState.SETUP);
             return;
         }
@@ -1495,6 +1496,7 @@ public class ProcessingCore extends PApplet {
                 return;
             }
             outputPath = outputFile.getAbsolutePath();
+            //TODO: get the image Model build
             FileHandler.exportCurrent(outputPath, this);
         } else if (k >= '1' && k <= '8') {
             int targetScale = k - '0';

@@ -125,9 +125,18 @@ public class FileHandler {
         setLastAsWorkingDirectory(false); // Default to save path for backward compatibility
     }
 
-    public static void exportCurrent(String filePath, ProcessingCore p) {
+    public static void exportCurrent(ImageModel imageModel, ProcessingCore p) {
+        String filePath = imageModel.getFilepath();
         // make the filename consistent
         String withoutFileEnding = filePath.split("\\.")[0];
+        if(imageModel.getName() != null && !imageModel.getName().isEmpty()){
+            withoutFileEnding =  imageModel.getName();
+            if(filePath.contains(File.separator)){
+                String pathOnly = filePath.substring(0, filePath.lastIndexOf(File.separator)+1);
+                withoutFileEnding = pathOnly + imageModel.getName();
+            }
+        }
+
         String fileEnding = "usc2";
         filePath = withoutFileEnding + "." + fileEnding;
         if (p.resultGrid == null) {

@@ -33,21 +33,22 @@ import core.ResultGlyph;
 import core.SaveFileManager;
 import core.ImageModel;
 
-
 public class BatchManager extends JFrame implements ActionListener {
-    
+
     private ControlPanel controlPanel;
     private ProcessingCore core;
-    
+
     private JButton addImagesButton;
     private JButton exportAllButton;
     private JButton calcallButton;
-    private JButton saveProjectButton;
     private JButton renameButton;
-    
+    private JButton saveProjectButton;
+    private JButton openProjectButton;
+    private JButton newProjectButton;
+
     private JList<String> imageList;
     private DefaultListModel<String> listModel;
-    
+
     private String currentSelectedImageName = null;
 
     private Project project;
@@ -60,10 +61,10 @@ public class BatchManager extends JFrame implements ActionListener {
         setSize(400, 500);
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         setLayout(new BorderLayout());
-        
+
         initUI();
     }
-    
+
     private void initUI() {
         listModel = new DefaultListModel<>();
         imageList = new JList<>(listModel);
@@ -76,34 +77,42 @@ public class BatchManager extends JFrame implements ActionListener {
                 }
             }
         });
-        
+
         JScrollPane scrollPane = new JScrollPane(imageList);
         add(scrollPane, BorderLayout.CENTER);
-        
+
         JPanel buttonPanel = new JPanel(new java.awt.GridLayout(0, 2));
-        
+
         renameButton = new JButton("Rename Image");
         renameButton.addActionListener(this);
         calcallButton = new JButton("Calc All");
         calcallButton.addActionListener(this);
-        
+
         addImagesButton = new JButton("Add Images");
         addImagesButton.addActionListener(this);
         exportAllButton = new JButton("Export All");
         exportAllButton.addActionListener(this);
         saveProjectButton = new JButton("Save Project");
         saveProjectButton.addActionListener(this);
-        
-        
-        
+        openProjectButton = new JButton("Open Project");
+        openProjectButton.addActionListener(this);
+
+        newProjectButton = new JButton("New Project");
+        newProjectButton.addActionListener(this);
+
         buttonPanel.add(addImagesButton);
-        buttonPanel.add(renameButton);        
+        buttonPanel.add(renameButton);
         buttonPanel.add(calcallButton);
         buttonPanel.add(exportAllButton);
+        buttonPanel.add(new JLabel()); // spacer
+        buttonPanel.add(new JLabel()); // spacer
+        buttonPanel.add(openProjectButton);
         buttonPanel.add(saveProjectButton);
+        buttonPanel.add(newProjectButton);
+
         add(buttonPanel, BorderLayout.SOUTH);
     }
-    
+
     // Public method to be called from ControlPanel or externally
     public void addImagesTrigger() {
         FileDialog fd = new FileDialog(this, "Select Images", FileDialog.LOAD);
@@ -113,18 +122,18 @@ public class BatchManager extends JFrame implements ActionListener {
             return n.endsWith(".jpg") || n.endsWith(".png") || n.endsWith(".jpeg") || n.endsWith(".bmp");
         });
         fd.setVisible(true);
-        
+
         File[] files = fd.getFiles();
         if (files != null && files.length > 0) {
             for (File file : files) {
                 addImage(file);
             }
         }
-        if(files.length > 0) {
+        if (files.length > 0) {
             controlPanel.setState(ControlPanel.PanelState.EDIT);
         }
     }
-    
+
     public void addImage(File file) {
         String name = file.getName();
         // Ensure unique name
@@ -134,29 +143,33 @@ public class BatchManager extends JFrame implements ActionListener {
             key = name + " (" + i + ")";
             i++;
         }
-        
+
         ImageModel model = new ImageModel(file.getAbsolutePath());
         // Initial setup for the model could go here ?
-        
+
         project.addImage(key, model);
         listModel.addElement(key);
     }
-    
+
     private void onImageSelected(String key) {
-        if (currentSelectedImageName != null && currentSelectedImageName.equals(key)) return;
+        if (currentSelectedImageName != null && currentSelectedImageName.equals(key))
+            return;
+
         currentSelectedImageName = key;
-        
+        ImageModel currentModel = project.getImgs().get(currentSelectedImageName);
+        core.imagePath = currentModel.getFilepath();
+
         ImageModel model = project.getImgs().get(key);
         if (model != null) {
             // Load this image into ProcessingCore logic
             if (core != null) {
-                 ResultGlyph[][] updatedGrid = core.loadAndProcessImage(model.getFilepath(), model.getGridData());
-                 model.setGridData(updatedGrid);
-                 controlPanel.updateForBatchSelection(key);
+                ResultGlyph[][] updatedGrid = core.loadAndProcessImage(model.getFilepath(), model.getGridData());
+                model.setGridData(updatedGrid);
+                controlPanel.updateForBatchSelection(key);
             }
         }
     }
-    
+
     @Override
     public void actionPerformed(ActionEvent e) {
         if (e.getSource() == addImagesButton) {
@@ -168,14 +181,35 @@ public class BatchManager extends JFrame implements ActionListener {
         } else if (e.getSource() == calcallButton) {
             calcAll();
         } else if (e.getSource() == renameButton) {
-
-
             rename();
-           
+        } else if (e.getSource() == openProjectButton) {
+            if (imageList.getModel().getSize() > 0) {
+                int result = javax.swing.JOptionPane.showOptionDialog(this,
+                        "Batch active. Add to batch or discard?",
+                        "Load Image",
+                        javax.swing.JOptionPane.YES_NO_CANCEL_OPTION,
+                        javax.swing.JOptionPane.QUESTION_MESSAGE,
+                        null,
+                        new String[] { "Discard Batch", "Cancel" },
+                        "Cancel");
+                if (result == 1) {
+                    return;
+                } else if (result == 0) {
+                    int saveResult = javax.swing.JOptionPane.showConfirmDialog(this, "Save project before discarding?",
+                            "Save Project", javax.swing.JOptionPane.YES_NO_OPTION);
+                    if (saveResult == javax.swing.JOptionPane.YES_OPTION) {
+                        saveProject();
+                    }  
+                    core.loadFile();
+                }
+            } else{
+                core.loadFile();
+            }
+            setProject(core.project);
         }
     }
 
-    void rename(){
+    void rename() {
         // TODO save an undo step for renaming
 
         int[] selectedIndices = imageList.getSelectedIndices();
@@ -213,13 +247,13 @@ public class BatchManager extends JFrame implements ActionListener {
 
         JPanel inputPanel = new JPanel(new GridLayout(0, 2, 5, 5));
         inputPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        
-        String[] options = {"Replace String", "Add Beginning", "Add End", "String_Index", "Shift Number"};
+
+        String[] options = { "Replace String", "Add Beginning", "Add End", "String_Index", "Shift Number" };
         JComboBox<String> strategyBox = new JComboBox<>(options);
-        
+
         JTextField targetField = new JTextField();
         JLabel targetLabel = new JLabel("Target String:");
-        
+
         JTextField newStringField = new JTextField();
         JLabel newStringLabel = new JLabel("New String / Base Name:");
 
@@ -234,7 +268,7 @@ public class BatchManager extends JFrame implements ActionListener {
         inputPanel.add(newStringField);
         inputPanel.add(indexLabel);
         inputPanel.add(changeIndex);
-        
+
         JTextArea previewArea = new JTextArea();
         previewArea.setEditable(false);
         JScrollPane previewScroll = new JScrollPane(previewArea);
@@ -251,23 +285,24 @@ public class BatchManager extends JFrame implements ActionListener {
         dialog.add(buttonPanel, BorderLayout.SOUTH);
 
         java.util.function.BiFunction<String, Integer, String> shiftNumber = (name, delta) -> {
-             java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)(?!.*\\d)").matcher(name);
-             if (m.find()) {
-                 String numStr = m.group(1);
-                 try {
-                     long val = Long.parseLong(numStr);
-                     long updated = val + delta;
-                     if (updated < 0) return name; // Impossible per requirement
-                     
-                     String format = "%0" + numStr.length() + "d";
-                     String newNode = String.format(format, updated);
-                     
-                     return new StringBuilder(name).replace(m.start(), m.end(), newNode).toString();
-                 } catch (NumberFormatException ex) {
-                     return name;
-                 }
-             }
-             return name;
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)(?!.*\\d)").matcher(name);
+            if (m.find()) {
+                String numStr = m.group(1);
+                try {
+                    long val = Long.parseLong(numStr);
+                    long updated = val + delta;
+                    if (updated < 0)
+                        return name; // Impossible per requirement
+
+                    String format = "%0" + numStr.length() + "d";
+                    String newNode = String.format(format, updated);
+
+                    return new StringBuilder(name).replace(m.start(), m.end(), newNode).toString();
+                } catch (NumberFormatException ex) {
+                    return name;
+                }
+            }
+            return name;
         };
 
         Runnable updatePreview = () -> {
@@ -276,7 +311,7 @@ public class BatchManager extends JFrame implements ActionListener {
             String target = targetField.getText();
             String replacement = newStringField.getText();
             int delta = (Integer) changeIndex.getValue();
-            
+
             int[] indices = imageList.getSelectedIndices();
             if (indices.length == 0) {
                 sb.append("No images selected.");
@@ -284,7 +319,7 @@ public class BatchManager extends JFrame implements ActionListener {
                 for (int i = 0; i < indices.length; i++) {
                     String oldName = listModel.getElementAt(indices[i]);
                     String newName = oldName;
-                    
+
                     if ("Replace String".equals(strategy)) {
                         if (target != null && !target.isEmpty()) {
                             newName = oldName.replace(target, replacement);
@@ -295,13 +330,13 @@ public class BatchManager extends JFrame implements ActionListener {
                         newName = oldName + replacement;
                     } else if ("String_Index".equals(strategy)) {
                         newName = replacement + "_" + i;
-                    } 
-                    
+                    }
+
                     // Apply index change if applicable
                     if (delta != 0) {
                         newName = shiftNumber.apply(newName, delta);
                     }
-                    
+
                     sb.append(oldName).append(" -> ").append(newName).append("\n");
                 }
             }
@@ -313,73 +348,81 @@ public class BatchManager extends JFrame implements ActionListener {
             boolean isReplace = "Replace String".equals(strategy);
             targetField.setEnabled(isReplace);
             targetLabel.setEnabled(isReplace);
-            
+
             // "Shift Number" implies no other text changes, just shifting.
             // But we allow shifting on ALL strategies now.
             // If "Shift Number" is selected, hide the text inputs to avoid confusion?
             // Or just treat "Shift Number" as "Keep Name + Shift".
             boolean isShiftOnly = "Shift Number".equals(strategy);
-            
+
             boolean isTextStrategy = !isShiftOnly;
             newStringField.setEnabled(isTextStrategy);
             newStringLabel.setEnabled(isTextStrategy);
-            
+
             // Allow index change on all options
             changeIndex.setEnabled(true);
             indexLabel.setEnabled(true);
-            
+
             updatePreview.run();
         });
 
         DocumentListener dl = new DocumentListener() {
-            public void insertUpdate(DocumentEvent e) { updatePreview.run(); }
-            public void removeUpdate(DocumentEvent e) { updatePreview.run(); }
-            public void changedUpdate(DocumentEvent e) { updatePreview.run(); }
+            public void insertUpdate(DocumentEvent e) {
+                updatePreview.run();
+            }
+
+            public void removeUpdate(DocumentEvent e) {
+                updatePreview.run();
+            }
+
+            public void changedUpdate(DocumentEvent e) {
+                updatePreview.run();
+            }
         };
         targetField.getDocument().addDocumentListener(dl);
         newStringField.getDocument().addDocumentListener(dl);
         changeIndex.addChangeListener(e -> updatePreview.run());
-        
+
         cancelButton.addActionListener(e -> dialog.dispose());
-        
+
         applyButton.addActionListener(e -> {
             String strategy = (String) strategyBox.getSelectedItem();
             String target = targetField.getText();
             String replacement = newStringField.getText();
             int delta = (Integer) changeIndex.getValue();
-            
+
             int[] indices = imageList.getSelectedIndices();
-            
+
             for (int i = 0; i < indices.length; i++) {
                 int idx = indices[i];
                 String oldName = listModel.getElementAt(idx);
                 String newName = oldName;
-                
+
                 if ("Replace String".equals(strategy)) {
-                     if (target != null && !target.isEmpty()) {
-                         newName = oldName.replace(target, replacement);
-                     }
-                 } else if ("Add Beginning".equals(strategy)) {
-                     newName = replacement + oldName;
-                 } else if ("Add End".equals(strategy)) {
-                     newName = oldName + replacement;
-                 } else if ("String_Index".equals(strategy)) {
-                     newName = replacement + "_" + i;
-                 }
-                 
-                 // Apply index change if applicable
-                 if (delta != 0) {
-                     newName = shiftNumber.apply(newName, delta);
-                 }
-                 
-                 if (!newName.equals(oldName) && !project.getImgs().containsKey(newName)) {
-                     RenameCommand renameCmd = new RenameCommand(this, idx, oldName, newName);
-                     core.commandManager.executeCommand(renameCmd);
-                 }
+                    if (target != null && !target.isEmpty()) {
+                        newName = oldName.replace(target, replacement);
+                    }
+                } else if ("Add Beginning".equals(strategy)) {
+                    newName = replacement + oldName;
+                } else if ("Add End".equals(strategy)) {
+                    newName = oldName + replacement;
+                } else if ("String_Index".equals(strategy)) {
+                    newName = replacement + "_" + i;
+                }
+
+                // Apply index change if applicable
+                if (delta != 0) {
+                    newName = shiftNumber.apply(newName, delta);
+                }
+
+                if (!newName.equals(oldName) && !project.getImgs().containsKey(newName)) {
+                    RenameCommand renameCmd = new RenameCommand(this, idx, oldName, newName);
+                    core.commandManager.executeCommand(renameCmd);
+                }
             }
             dialog.dispose();
         });
-        
+
         // Initial state
         boolean isReplace = "Replace String".equals(strategyBox.getSelectedItem());
         targetField.setEnabled(isReplace);
@@ -387,14 +430,14 @@ public class BatchManager extends JFrame implements ActionListener {
         changeIndex.setEnabled(true);
         indexLabel.setEnabled(true);
         updatePreview.run();
-        
+
         dialog.setLocationRelativeTo(this);
         dialog.setVisible(true);
     }
 
     public void renameImage(int index, String newName) {
         String currentName = listModel.getElementAt(index);
-        //check for doubles
+        // check for doubles
         if (project.getImgs().containsKey(newName)) {
             javax.swing.JOptionPane.showMessageDialog(this, "An image with the name '" + newName + "' already exists.");
             return;
@@ -406,23 +449,21 @@ public class BatchManager extends JFrame implements ActionListener {
         model.setName(newName);
         currentSelectedImageName = newName;
     }
- 
-    
-
 
     public void saveProject() {
         FileDialog fd = new FileDialog(this, "Save Project", FileDialog.SAVE);
-        fd.setFile("*.usc2");
+        fd.setFile("*.uscP");
         fd.setVisible(true);
-        
+
         if (fd.getFile() != null) {
-             File file = new File(fd.getDirectory(), fd.getFile());
-             if (!file.getName().endsWith(".uscP")) {
-                 file = new File(file.getAbsolutePath() + ".uscP");
-             }
-             // Before saving, ensure current changes in Core are captured into the current model
-             updateCurrentModelFromCore();
-             SaveFileManager.saveProject(project, file);
+            File file = new File(fd.getDirectory(), fd.getFile());
+            if (!file.getName().endsWith(".uscP")) {
+                file = new File(file.getAbsolutePath() + ".uscP");
+            }
+            // Before saving, ensure current changes in Core are captured into the current
+            // model
+            updateCurrentModelFromCore();
+            SaveFileManager.saveProject(project, file);
         }
     }
 
@@ -438,10 +479,10 @@ public class BatchManager extends JFrame implements ActionListener {
     }
 
     private void exportAll() {
-        //TODO: get filepath
-        if(core.hasSelection){
-            String[] options = {"Export Selection", "Export Full", "Cancel"};
-            
+        // TODO: get filepath
+        if (core.hasSelection) {
+            String[] options = { "Export Selection", "Export Full", "Cancel" };
+
             int saveResult = javax.swing.JOptionPane.showOptionDialog(this,
                     "Batch Export only Selection?",
                     "Export Batch Selection",
@@ -458,39 +499,42 @@ public class BatchManager extends JFrame implements ActionListener {
             }
         }
         String path = FileHandler.getSaveFolder("Select Export Folder");
-        if (path == null) return;
+        if (path == null)
+            return;
         for (String key : project.getImgs().keySet()) {
             ImageModel model = project.getImgs().get(key);
             if (model != null) {
-                if(model.getGridData()==null){
+                if (model.getGridData() == null) {
                     core.loadAndProcessImage(model.getFilepath(), model.getGridData());
                 }
                 core.exportFile(new File(path, key + ".usc").getAbsolutePath());
             }
-            
+
         }
     }
-    
+
     public void updateCurrentModelFromCore() {
-        if (currentSelectedImageName == null) return;
+        if (currentSelectedImageName == null)
+            return;
         ImageModel model = project.getImgs().get(currentSelectedImageName);
         if (model != null) {
             // Capture grid, preferences from core
             if (core.resultGrid != null) {
-               model.setGridData(core.resultGrid);
+                model.setGridData(core.resultGrid);
             }
             // Capture other settings
-            model.addPreference("scale", String.valueOf(ControlPanel.usePreference)); 
+            model.addPreference("scale", String.valueOf(ControlPanel.usePreference));
             // etc
         }
     }
-    
+
     public Project getProject() {
         return project;
     }
-    
+
     public void setProject(Project project) {
         this.project = project;
+        imageList.clearSelection();
         listModel.clear();
         for (String key : project.getImgs().keySet()) {
             listModel.addElement(key);

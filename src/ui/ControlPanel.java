@@ -49,12 +49,12 @@ public class ControlPanel extends JFrame implements ActionListener {
     private BatchManager batchManager;
 
     // Buttons & Controls
-    private JButton openButton;
+    // private JButton openButton;
     private JButton toggleViewButton;
-    private JButton exportButton;
+    // private JButton exportButton;
     private JButton restartButton;
-    private JButton batchButton;
-    private JButton saveProjectButton;
+    // private JButton batchButton;
+    // private JButton saveProjectButton;
     private JComboBox<String> scaleSelector;
     private JTextArea logArea;
 
@@ -205,19 +205,19 @@ public class ControlPanel extends JFrame implements ActionListener {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1.0;
-        openButton = createButton("Open", "Load File (L)");
+        // openButton = createButton("Open", "Load File (L)");
         toggleViewButton = createButton("Image", "Toggle View (S)");
-        exportButton = createButton("Export", "Export Output (P)");
+        // exportButton = createButton("Export", "Export Output (P)");
         restartButton = createButton("Recalc", "Restart Processing (R)");
         
-        batchButton = createButton("Batch", "Open Batch Manager");
-        saveProjectButton = createButton("Save Project", "Save Project");
+        // batchButton = createButton("Batch", "Open Batch Manager");
+        // saveProjectButton = createButton("Save Project", "Save Project");
 
         JPanel fileRow = new JPanel(new GridLayout(1, 6, 3, 0));
-        fileRow.add(openButton);
-        fileRow.add(exportButton);
-        fileRow.add(saveProjectButton);
-        fileRow.add(batchButton);
+        // fileRow.add(openButton);
+        // // fileRow.add(exportButton);
+        // fileRow.add(saveProjectButton);
+        // fileRow.add(batchButton);
         fileRow.add(restartButton);
         fileRow.add(toggleViewButton);
 
@@ -457,9 +457,9 @@ public class ControlPanel extends JFrame implements ActionListener {
     public void setState(PanelState state) {
         this.state = state;
         boolean editEnabled = (state == PanelState.EDIT);
-        openButton.setEnabled(true);
+        // openButton.setEnabled(true);
         toggleViewButton.setEnabled(editEnabled);
-        exportButton.setEnabled(editEnabled);
+        // exportButton.setEnabled(editEnabled);
         restartButton.setEnabled(editEnabled);
         scaleSelector.setEnabled(editEnabled);
         undoButton.setEnabled(editEnabled);
@@ -499,87 +499,88 @@ public class ControlPanel extends JFrame implements ActionListener {
         try {
             Object source = e.getSource();
             if (source == toggleViewButton) p.keyPressed('s');
-            else if (source == exportButton) p.keyPressed('p');
+            // else if (source == exportButton) p.keyPressed('p');
             else if (source == restartButton) p.keyPressed('r');
             else if (source == scaleSelector) p.keyPressed((char) ('0' + scaleSelector.getSelectedIndex() + 1));
-            else if (source == openButton) {
-                if (batchManager.isVisible() || !batchManager.getProject().getImgs().isEmpty()) {
-                      int result = javax.swing.JOptionPane.showOptionDialog(this, 
-                          "Batch active. Add to batch or discard?", 
-                          "Load Image", 
-                          javax.swing.JOptionPane.YES_NO_CANCEL_OPTION, 
-                          javax.swing.JOptionPane.QUESTION_MESSAGE, 
-                          null, 
-                          new String[]{"Add to Batch", "Discard Batch", "Cancel"}, 
-                          "Add to Batch");
+            // else if (source == openButton) {
+            //     if (batchManager.isVisible() || !batchManager.getProject().getImgs().isEmpty()) {
+            //           int result = javax.swing.JOptionPane.showOptionDialog(this, 
+            //               "Batch active. Add to batch or discard?", 
+            //               "Load Image", 
+            //               javax.swing.JOptionPane.YES_NO_CANCEL_OPTION, 
+            //               javax.swing.JOptionPane.QUESTION_MESSAGE, 
+            //               null, 
+            //               new String[]{"Add to Batch", "Discard Batch", "Cancel"}, 
+            //               "Add to Batch");
                       
-                      if (result == 0) { 
-                           batchManager.addImagesTrigger();
-                      } else if (result == 1) { 
-                           int saveResult = javax.swing.JOptionPane.showConfirmDialog(this, "Save project before discarding?", "Save Project", javax.swing.JOptionPane.YES_NO_OPTION);
-                           if (saveResult == javax.swing.JOptionPane.YES_OPTION) {
-                               batchManager.saveProject();
-                           }
-                           batchManager.setProject(new core.Project());
-                           batchManager.setVisible(false);
-                           p.keyPressed('l');
-                      }
-                 } else {
-                     p.keyPressed('l');
-                 }
-            } else if (source == batchButton) {
-                 if (batchManager.isVisible() || !batchManager.getProject().getImgs().isEmpty()) {
-                      int result = javax.swing.JOptionPane.showOptionDialog(this, 
-                          "Batch is currently active. Add new images or discard current batch?", 
-                          "New Batch", 
-                          javax.swing.JOptionPane.YES_NO_CANCEL_OPTION, 
-                          javax.swing.JOptionPane.QUESTION_MESSAGE, 
-                          null, 
-                          new String[]{"Add to Batch", "Discard & New", "Cancel"}, 
-                          "Add to Batch");
-                       if(result == 0) {
-                           batchManager.setVisible(true);
-                           batchManager.addImagesTrigger();
-                       } else if (result == 1) {
-                            int saveResult = javax.swing.JOptionPane.showConfirmDialog(this, "Save project before discarding?", "Save Project", javax.swing.JOptionPane.YES_NO_OPTION);
-                            if (saveResult == javax.swing.JOptionPane.YES_OPTION) {
-                                batchManager.saveProject();
-                            }
-                            batchManager.setProject(new core.Project());
-                            batchManager.setVisible(true);
-                            batchManager.addImagesTrigger();
-                       }
-                 } else {
-                     batchManager.setVisible(true);
-                     batchManager.addImagesTrigger();
-                 }
-            } else if (source == saveProjectButton) {
-                 if (batchManager.isVisible() || !batchManager.getProject().getImgs().isEmpty()) {
-                     batchManager.saveProject();
-                 } else {
-                     java.awt.FileDialog fd = new java.awt.FileDialog(this, "Save Project", java.awt.FileDialog.SAVE);
-                     fd.setFile("*.uscP");
-                     fd.setVisible(true);
+            //           if (result == 0) { 
+            //                batchManager.addImagesTrigger();
+            //           } else if (result == 1) { 
+            //                int saveResult = javax.swing.JOptionPane.showConfirmDialog(this, "Save project before discarding?", "Save Project", javax.swing.JOptionPane.YES_NO_OPTION);
+            //                if (saveResult == javax.swing.JOptionPane.YES_OPTION) {
+            //                    batchManager.saveProject();
+            //                }
+            //                batchManager.setProject(new core.Project());
+            //                batchManager.setVisible(false);
+            //                p.keyPressed('l');
+            //           }
+            //      } else {
+            //          p.keyPressed('l');
+            //      }
+            // }
+            // else if (source == batchButton) {
+            //      if (batchManager.isVisible() || !batchManager.getProject().getImgs().isEmpty()) {
+            //           int result = javax.swing.JOptionPane.showOptionDialog(this, 
+            //               "Batch is currently active. Add new images or discard current batch?", 
+            //               "New Batch", 
+            //               javax.swing.JOptionPane.YES_NO_CANCEL_OPTION, 
+            //               javax.swing.JOptionPane.QUESTION_MESSAGE, 
+            //               null, 
+            //               new String[]{"Add to Batch", "Discard & New", "Cancel"}, 
+            //               "Add to Batch");
+            //            if(result == 0) {
+            //                batchManager.setVisible(true);
+            //                batchManager.addImagesTrigger();
+            //            } else if (result == 1) {
+            //                 int saveResult = javax.swing.JOptionPane.showConfirmDialog(this, "Save project before discarding?", "Save Project", javax.swing.JOptionPane.YES_NO_OPTION);
+            //                 if (saveResult == javax.swing.JOptionPane.YES_OPTION) {
+            //                     batchManager.saveProject();
+            //                 }
+            //                 batchManager.setProject(new core.Project());
+            //                 batchManager.setVisible(true);
+            //                 batchManager.addImagesTrigger();
+            //            }
+            //      } else {
+            //          batchManager.setVisible(true);
+            //          batchManager.addImagesTrigger();
+            //      }
+            // } else if (source == saveProjectButton) {
+            //      if (batchManager.isVisible() || !batchManager.getProject().getImgs().isEmpty()) {
+            //          batchManager.saveProject();
+            //      } else {
+            //          java.awt.FileDialog fd = new java.awt.FileDialog(this, "Save Project", java.awt.FileDialog.SAVE);
+            //          fd.setFile("*.uscP");
+            //          fd.setVisible(true);
                      
-                     if (fd.getFile() != null) {
-                         java.io.File file = new java.io.File(fd.getDirectory(), fd.getFile());
-                         if (!file.getName().endsWith(".uscP")) {
-                             file = new java.io.File(file.getAbsolutePath() + ".uscP");
-                         }
-                         String path = p.getImagePath();
-                         if (path != null) {
-                             core.Project tempProj = new core.Project();
-                             core.ImageModel model = new core.ImageModel(path);
-                             if(p.resultGrid != null) model.setGridData(p.resultGrid);
-                             model.addPreference("scale", String.valueOf(usePreference));
-                             tempProj.addImage(new java.io.File(path).getName(), model);
-                             core.SaveFileManager.saveProject(tempProj, file);
-                         } else {
-                             logger.Logger.println("No image to save.");
-                         }
-                     }
-                 }
-            }
+            //          if (fd.getFile() != null) {
+            //              java.io.File file = new java.io.File(fd.getDirectory(), fd.getFile());
+            //              if (!file.getName().endsWith(".uscP")) {
+            //                  file = new java.io.File(file.getAbsolutePath() + ".uscP");
+            //              }
+            //              String path = p.getImagePath();
+            //              if (path != null) {
+            //                  core.Project tempProj = new core.Project();
+            //                  core.ImageModel model = new core.ImageModel(path);
+            //                  if(p.resultGrid != null) model.setGridData(p.resultGrid);
+            //                  model.addPreference("scale", String.valueOf(usePreference));
+            //                  tempProj.addImage(new java.io.File(path).getName(), model);
+            //                  core.SaveFileManager.saveProject(tempProj, file);
+            //              } else {
+            //                  logger.Logger.println("No image to save.");
+            //              }
+            //          }
+            //      }
+            // }
             else if (source == undoButton) p.undoAction();
             else if (source == redoButton) p.redoAction();
             else if (source == centerImageButton) p.centerImage();
