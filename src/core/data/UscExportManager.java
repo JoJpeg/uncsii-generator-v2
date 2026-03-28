@@ -1,0 +1,304 @@
+package core.data;
+import java.awt.FileDialog;
+import java.awt.Frame;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+
+import core.ImageModel;
+import core.ProcessingCore;
+import core.ResultGlyph;
+import logger.Logger;
+
+public class UscExportManager {
+
+    public static String saveFileWorkPath;
+    public static String loadFileWorkPath;
+
+    public static File lastSelection = null;
+
+    public UscExportManager(ProcessingCore core) {
+    }
+
+    public static File loadFile(String message) {
+        // get a file the Java way using the system's native file chooser
+        // mode = 0 for save, 1 for load
+        return getFile(message, FileDialog.LOAD, null);
+    }
+
+    public static File saveFile(String message) {
+        // get a file the Java way using the system's native file chooser
+        // mode = 0 for save, 1 for load
+        return getFile(message, FileDialog.SAVE, null);
+    }
+
+    public static String getSaveFolder(String message) {
+        Frame parentFrame = null;
+        FileDialog fileDialog = new FileDialog(parentFrame, message, FileDialog.SAVE);
+
+        // Set initial directory based on operation type
+        if (saveFileWorkPath != null) {
+            File dir = new File(saveFileWorkPath).getParentFile();
+            if (dir != null && dir.exists()) {
+                fileDialog.setDirectory(dir.getAbsolutePath());
+            }
+        }
+
+        // For macOS, set system property to use native file dialog
+        // System.setProperty("apple.awt.fileDialogForDirectories", "true"); // If
+        // needed for directories
+        fileDialog.setVisible(true);
+
+        String directory = fileDialog.getDirectory();
+
+        if (directory != null) {
+            return directory;
+        } else {
+            return null;
+        }
+    }
+
+    // get a file the Java way using the system's native file chooser
+    public static File getFile(String message, int mode, String[] fileTypes) {
+        // mode = 0 for save, 1 for load
+        // Use Frame as parent, can be null
+        Frame parentFrame = null;
+        FileDialog fileDialog = new FileDialog(parentFrame, message, mode);
+        if (fileTypes != null && fileTypes.length > 0) {
+            fileDialog.setFilenameFilter((dir, name) -> {
+                for (String ext : fileTypes) {
+                    if (name.toLowerCase().endsWith("." + ext.toLowerCase())) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+        }
+        // Set initial directory based on operation type
+        if (mode == FileDialog.SAVE && saveFileWorkPath != null) {
+            File dir = new File(saveFileWorkPath).getParentFile();
+            if (dir != null && dir.exists()) {
+                fileDialog.setDirectory(dir.getAbsolutePath());
+            }
+        } else if (mode == FileDialog.LOAD && loadFileWorkPath != null) {
+            File dir = new File(loadFileWorkPath).getParentFile();
+            if (dir != null && dir.exists()) {
+                fileDialog.setDirectory(dir.getAbsolutePath());
+            }
+        }
+
+        // For macOS, set system property to use native file dialog
+        // System.setProperty("apple.awt.fileDialogForDirectories", "true"); // If
+        // needed for directories
+        fileDialog.setVisible(true);
+
+        String directory = fileDialog.getDirectory();
+        String filename = fileDialog.getFile();
+
+        if (directory != null && filename != null) {
+            lastSelection = new File(directory, filename);
+
+            // Update the appropriate path based on operation type
+            if (mode == FileDialog.SAVE) {
+                saveFileWorkPath = lastSelection.getAbsolutePath();
+                Logger.println("Save working path updated to: " + directory);
+            } else if (mode == FileDialog.LOAD) {
+                loadFileWorkPath = lastSelection.getAbsolutePath();
+                Logger.println("Load working path updated to: " + directory);
+            }
+
+            return lastSelection;
+        } else {
+            lastSelection = null;
+            return null;
+        }
+        // For macOS, unset the property if you set it earlier
+        // System.setProperty("apple.awt.fileDialogForDirectories", "false");
+    }
+
+    public static void setLastAsWorkingDirectory(boolean forLoad) {
+        if (lastSelection != null) {
+            if (forLoad) {
+                loadFileWorkPath = lastSelection.getAbsolutePath();
+                Logger.println("Load working directory set to: " + loadFileWorkPath);
+            } else {
+                saveFileWorkPath = lastSelection.getAbsolutePath();
+                Logger.println("Save working directory set to: " + saveFileWorkPath);
+            }
+        } else {
+            Logger.println("No file selected, working directory not set.");
+        }
+    }
+
+    // Keep the original method for backward compatibility
+    public static void setLastAsWorkingDirectory() {
+        setLastAsWorkingDirectory(false); // Default to save path for backward compatibility
+    }
+
+    public static void exportCurrent(String path, ProcessingCore p) {
+        if (p.resultGrid == null) {
+            Logger.println("Nothing to save.");
+            return;
+        }
+        ImageModel tempModel = new ImageModel(path);
+        tempModel.setGridData(p.resultGrid);
+        exportImageModel(tempModel, path, p);
+    }
+
+    public static void exportCurrent(ImageModel imageModel, ProcessingCore p) {
+        String filePath = imageModel.getFilepath();
+        // make the filename consistent
+        String withoutFileEnding = filePath.split("\\.")[0];
+        if (imageModel.getName() != null && !imageModel.getName().isEmpty()) {
+            withoutFileEnding = imageModel.getName();
+            if (withoutFileEnding.contains(File.separator)) {
+                withoutFileEnding = withoutFileEnding.split(File.separator)[0];
+            }
+        }
+
+        String fileEnding = "usc2";
+        filePath = withoutFileEnding + "." + fileEnding;
+        
+        exportImageModel(imageModel, filePath, p);
+    }
+
+    public static void exportImageModel(ImageModel imageModel, String outputPath, ProcessingCore p) {
+        if (imageModel.getGridData() == null) {
+            Logger.println("Nothing to save for " + imageModel.getName());
+            return;
+        }
+        // Use grid dimensions from the model
+        int fullGridHeight = imageModel.getGridData().length;
+        int fullGridWidth = imageModel.getGridData()[0].length;
+
+        if (fullGridWidth <= 0 || fullGridHeight <= 0) {
+            Logger.println("Invalid grid dimensions, cannot save.");
+            return;
+        }
+
+        // Determine export boundaries based on selection in ProcessingCore
+        int exportX = 0;
+        int exportY = 0;
+        int exportWidth = fullGridWidth;
+        int exportHeight = fullGridHeight;
+
+        // Access selection state directly from ProcessingCore instance p
+        // Only apply selection if it fits within the current model's grid
+        if (p.hasSelection && p.selectionStartX != -1 && p.selectionStartY != -1 && p.selectionEndX != -1
+                && p.selectionEndY != -1) {
+            exportX = Math.min(p.selectionStartX, p.selectionEndX);
+            exportY = Math.min(p.selectionStartY, p.selectionEndY);
+            int maxX = Math.max(p.selectionStartX, p.selectionEndX);
+            int maxY = Math.max(p.selectionStartY, p.selectionEndY);
+            
+            // Clip to model dimensions
+            exportX = Math.max(0, Math.min(exportX, fullGridWidth - 1));
+            exportY = Math.max(0, Math.min(exportY, fullGridHeight - 1));
+            int clippedMaxX = Math.max(0, Math.min(maxX, fullGridWidth - 1));
+            int clippedMaxY = Math.max(0, Math.min(maxY, fullGridHeight - 1));
+
+            exportWidth = clippedMaxX - exportX + 1;
+            exportHeight = clippedMaxY - exportY + 1;
+            
+            Logger.println("Exporting selected area: (" + exportX + "," + exportY + ") Width=" + exportWidth
+                    + " Height=" + exportHeight);
+        } else {
+            Logger.println("Exporting full grid.");
+        }
+
+        //check if outputPath ends with .usc2, if not, add it
+        if (!outputPath.toLowerCase().endsWith(".usc2")) {
+            outputPath += ".usc2";
+        }
+
+        Logger.println("Saving result to " + outputPath + " (filtering control chars)...");
+
+        try (FileOutputStream fos = new FileOutputStream(outputPath);
+                OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8);
+                PrintWriter writer = new PrintWriter(osw)) {
+
+            writer.println("TYPE=USCII_ART_V3_SEPARATED");
+            // Write the dimensions of the exported area
+            writer.println("WIDTH=" + exportWidth);
+            writer.println("HEIGHT=" + exportHeight);
+            writer.println("COLORS=xterm256");
+            writer.println("DATA_FORMAT=CHARS_GRID; FG_BG_GRID");
+            writer.println();
+
+            writer.println("CHARS");
+            // Loop over the export area dimensions
+            for (int y = 0; y < exportHeight; y++) {
+                StringBuilder charLine = new StringBuilder(exportWidth);
+                for (int x = 0; x < exportWidth; x++) {
+                    // Calculate grid coordinates using offset
+                    int currentGridY = exportY + y;
+                    int currentGridX = exportX + x;
+
+                    // Boundary check before accessing resultGrid
+                    if (currentGridY >= 0 && currentGridY < fullGridHeight && currentGridX >= 0
+                            && currentGridX < fullGridWidth) {
+                        ResultGlyph g = imageModel.getGridData()[currentGridY][currentGridX];
+                        if (g != null) {
+                            int cp = g.codePoint;
+
+                            if (cp == 0) {
+                                charLine.append(' ');
+                            } else if (Character.isISOControl(cp) && !Character.isWhitespace(cp)) {
+                                charLine.append('.'); // Replace control chars (except whitespace) with '.'
+                            } else {
+                                charLine.append(Character.toChars(cp)); // Use toChars for broader Unicode support
+                            }
+                        } else {
+                            charLine.append('?'); // Placeholder for null glyphs
+                        }
+                    } else {
+                        charLine.append('!'); // Indicate out-of-bounds access attempt (should not happen)
+                        Logger.println("Warning: Attempted to save out-of-bounds cell at (" + currentGridX + ","
+                                + currentGridY + ")");
+                    }
+                }
+                writer.println(charLine.toString());
+            }
+            writer.println();
+
+            writer.println("COLORS");
+            // Loop over the export area dimensions
+            for (int y = 0; y < exportHeight; y++) {
+                StringBuilder colorLine = new StringBuilder(exportWidth * 8); // Adjusted capacity estimate
+                for (int x = 0; x < exportWidth; x++) {
+                    // Calculate grid coordinates using offset
+                    int currentGridY = exportY + y;
+                    int currentGridX = exportX + x;
+
+                    // Boundary check before accessing resultGrid
+                    if (currentGridY >= 0 && currentGridY < fullGridHeight && currentGridX >= 0
+                            && currentGridX < fullGridWidth) {
+                        ResultGlyph g = imageModel.getGridData()[currentGridY][currentGridX];
+                        if (g != null) {
+                            colorLine.append(g.fgIndex).append(" ").append(g.bgIndex);
+                        } else {
+                            colorLine.append("0 0"); // Default colors for null glyphs
+                        }
+                    } else {
+                        colorLine.append("0 0"); // Default colors for out-of-bounds
+                    }
+
+                    if (x < exportWidth - 1) {
+                        colorLine.append(" ");
+                    }
+                }
+                writer.println(colorLine.toString());
+            }
+
+            writer.flush();
+            Logger.println("Result saved successfully in V3 format (control chars filtered).");
+
+        } catch (Exception e) {
+            Logger.println("Error saving result file: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+}

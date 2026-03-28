@@ -27,10 +27,12 @@ import javax.swing.ListSelectionModel;
 
 import core.Project;
 import core.RenameCommand;
-import core.FileHandler;
+import core.CommandManager;
 import core.ProcessingCore;
 import core.ResultGlyph;
-import core.SaveFileManager;
+import core.data.UscExportManager;
+import core.data.ProjectFileManager;
+import core.data.ProjectFileManager;
 import core.ImageModel;
 
 public class BatchManager extends JFrame implements ActionListener {
@@ -39,7 +41,13 @@ public class BatchManager extends JFrame implements ActionListener {
     private ProcessingCore core;
 
     private JButton addImagesButton;
+    private JButton removeImageButton;
+
+    private JButton sortImagesButton;
+
     private JButton exportAllButton;
+    private JButton exportButton;
+
     private JButton calcallButton;
     private JButton renameButton;
     private JButton saveProjectButton;
@@ -85,11 +93,20 @@ public class BatchManager extends JFrame implements ActionListener {
 
         renameButton = new JButton("Rename Image");
         renameButton.addActionListener(this);
+
+        removeImageButton = new JButton("Remove Image");
+        removeImageButton.addActionListener(this);
+
+        sortImagesButton = new JButton("Sort Images");
+        sortImagesButton.addActionListener(this);
+
         calcallButton = new JButton("Calc All");
         calcallButton.addActionListener(this);
 
         addImagesButton = new JButton("Add Images");
         addImagesButton.addActionListener(this);
+        exportButton = new JButton("Export");
+        exportButton.addActionListener(this);
         exportAllButton = new JButton("Export All");
         exportAllButton.addActionListener(this);
         saveProjectButton = new JButton("Save Project");
@@ -101,14 +118,25 @@ public class BatchManager extends JFrame implements ActionListener {
         newProjectButton.addActionListener(this);
 
         buttonPanel.add(addImagesButton);
+        buttonPanel.add(removeImageButton);
+
         buttonPanel.add(renameButton);
         buttonPanel.add(calcallButton);
+
+        buttonPanel.add(sortImagesButton);
+        buttonPanel.add(new JLabel()); // spacer
+
+        buttonPanel.add(exportButton);
         buttonPanel.add(exportAllButton);
+
         buttonPanel.add(new JLabel()); // spacer
         buttonPanel.add(new JLabel()); // spacer
+
         buttonPanel.add(openProjectButton);
         buttonPanel.add(saveProjectButton);
+
         buttonPanel.add(newProjectButton);
+        
 
         add(buttonPanel, BorderLayout.SOUTH);
     }
@@ -155,15 +183,20 @@ public class BatchManager extends JFrame implements ActionListener {
         if (currentSelectedImageName != null && currentSelectedImageName.equals(key))
             return;
 
+        // Save state of the PREVIOUS image model before switching
+        if (currentSelectedImageName != null) {
+            updateCurrentModelFromCore();
+        }
+
         currentSelectedImageName = key;
-        ImageModel currentModel = project.getImgs().get(currentSelectedImageName);
+        ImageModel currentModel = project.getImage(currentSelectedImageName);
         core.imagePath = currentModel.getFilepath();
 
-        ImageModel model = project.getImgs().get(key);
+        ImageModel model = project.getImage(key);
         if (model != null) {
             // Load this image into ProcessingCore logic
             if (core != null) {
-                ResultGlyph[][] updatedGrid = core.loadAndProcessImage(model.getFilepath(), model.getGridData());
+                ResultGlyph[][] updatedGrid = core.loadAndProcessImage(model.getFilepath(), model.getGridData(), false);
                 model.setGridData(updatedGrid);
                 controlPanel.updateForBatchSelection(key);
             }
@@ -178,40 +211,78 @@ public class BatchManager extends JFrame implements ActionListener {
             saveProject();
         } else if (e.getSource() == exportAllButton) {
             exportAll();
+        }else if (e.getSource() == exportButton) {
+            exportCurrent();
+        } else if (e.getSource() == removeImageButton) {
+            removeImage();
         } else if (e.getSource() == calcallButton) {
             calcAll();
         } else if (e.getSource() == renameButton) {
             rename();
         } else if (e.getSource() == openProjectButton) {
-            if (imageList.getModel().getSize() > 0) {
-                int result = javax.swing.JOptionPane.showOptionDialog(this,
-                        "Batch active. Add to batch or discard?",
-                        "Load Image",
-                        javax.swing.JOptionPane.YES_NO_CANCEL_OPTION,
-                        javax.swing.JOptionPane.QUESTION_MESSAGE,
-                        null,
-                        new String[] { "Discard Batch", "Cancel" },
-                        "Cancel");
-                if (result == 1) {
-                    return;
-                } else if (result == 0) {
-                    int saveResult = javax.swing.JOptionPane.showConfirmDialog(this, "Save project before discarding?",
-                            "Save Project", javax.swing.JOptionPane.YES_NO_OPTION);
-                    if (saveResult == javax.swing.JOptionPane.YES_OPTION) {
-                        saveProject();
-                    }  
-                    core.loadFile();
-                }
-            } else{
-                core.loadFile();
-            }
-            setProject(core.project);
+            open();
+        } else if (newProjectButton == e.getSource()) {
+            newProject();
         }
+        else if( e.getSource() == sortImagesButton){
+         sortImages();
+        }
+        
     }
 
-    void rename() {
-        // TODO save an undo step for renaming
+    void open(){
+        if (imageList.getModel().getSize() > 0) {
+            int result = javax.swing.JOptionPane.showOptionDialog(this,
+                    "Batch active. Add to batch or discard?",
+                    "Load Image",
+                    javax.swing.JOptionPane.YES_NO_CANCEL_OPTION,
+                    javax.swing.JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    new String[] { "Discard Batch", "Cancel" },
+                    "Cancel");
+            if (result == 1) {
+                return;
+            } else if (result == 0) {
+                int saveResult = javax.swing.JOptionPane.showConfirmDialog(this, "Save project before discarding?",
+                        "Save Project", javax.swing.JOptionPane.YES_NO_OPTION);
+                if (saveResult == javax.swing.JOptionPane.YES_OPTION) {
+                    saveProject();
+                }
+                core.loadFile();
+            }
+        } else {
+            core.loadFile();
+        }
+        setProject(core.project);
+    }
+    
+    void newProject(){
+        boolean hasUnsaved = imageList.getModel().getSize() > 0 || CommandManager.actionPerformed;
+        if (hasUnsaved) {
+            String[] options = { "Save Current Project", "Discard Current Project", "Cancel" };
+            int result = javax.swing.JOptionPane.showOptionDialog(this,
+                    "Create new project. Save current project or discard?",
+                    "New Project",
+                    javax.swing.JOptionPane.YES_NO_CANCEL_OPTION,
+                    javax.swing.JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    options,
+                    options[2]);
+            if (result == 2) { // Cancel
+                return;
+            } else if (result == 0) { // Save Current Project
+                saveProject();
+            }
+        }
 
+        project = new Project();
+        core.project = project;
+        listModel.clear();
+        currentSelectedImageName = null;
+        controlPanel.setState(ControlPanel.PanelState.SETUP);
+    }
+    
+    void rename() {
         int[] selectedIndices = imageList.getSelectedIndices();
         if (selectedIndices.length == 0) {
             javax.swing.JOptionPane.showMessageDialog(this, "No image selected to rename.");
@@ -443,11 +514,17 @@ public class BatchManager extends JFrame implements ActionListener {
             return;
         }
 
-        ImageModel model = project.getImgs().remove(currentName);
-        project.addImage(newName, model);
-        listModel.setElementAt(newName, index);
+        ImageModel model = project.getImage(currentName);
         model.setName(newName);
-        currentSelectedImageName = newName;
+        listModel.setElementAt(newName, index);
+        project.getImgs().remove(currentName);
+        project.addImage(newName, model);
+
+        // ImageModel model = project.getImgs().remove(currentName);
+        // project.addImage(newName, model);
+        // listModel.setElementAt(newName, index);
+        // model.setName(newName);
+        // currentSelectedImageName = newName;
     }
 
     public void saveProject() {
@@ -463,19 +540,63 @@ public class BatchManager extends JFrame implements ActionListener {
             // Before saving, ensure current changes in Core are captured into the current
             // model
             updateCurrentModelFromCore();
-            SaveFileManager.saveProject(project, file);
+
+
+            // Reconstruct the map using LinkedHashMap to match listModel order
+            java.util.Map<String, ImageModel> orderedImgs = new java.util.LinkedHashMap<>();
+            for (int i = 0; i < listModel.size(); i++) {
+                String key = listModel.getElementAt(i);
+                ImageModel model = project.getImage(key);
+                if (model != null) {
+                    orderedImgs.put(key, model);
+                }
+            }
+            project.setImgs(orderedImgs);
+
+            ProjectFileManager.saveProject(project, file);
+            CommandManager.actionPerformed = false;
         }
     }
 
     private void calcAll() {
+        boolean forceReload = javax.swing.JOptionPane.showConfirmDialog(this,
+                "Force reload of all images from disk? This may be slower but ensures all images are up to date.",
+                "Force Reload", javax.swing.JOptionPane.YES_NO_OPTION) == javax.swing.JOptionPane.YES_OPTION;
         for (String key : project.getImgs().keySet()) {
-            ImageModel model = project.getImgs().get(key);
+            ImageModel model = project.getImage(key);
             if (model != null) {
-                core.loadAndProcessImage(model.getFilepath(), model.getGridData());
-                // Update model with new grid data
-                model.setGridData(core.resultGrid);
+                // Update model with new grid data directly from the return value
+                model.setGridData(core.loadAndProcessImage(model.getFilepath(), model.getGridData(), forceReload));
             }
         }
+    }
+
+    private void exportCurrent() {
+        if (core.hasSelection) {
+            String[] options = { "Export Selection", "Export Full", "Cancel" };
+
+            int saveResult = javax.swing.JOptionPane.showOptionDialog(this,
+                    "Batch Export only Selection?",
+                    "Export Batch Selection",
+                    javax.swing.JOptionPane.YES_NO_CANCEL_OPTION,
+                    javax.swing.JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    options,
+                    options[0]);
+
+            if (saveResult == 1) { // Export Full (index 1)
+                core.hasSelection = false;
+            } else if (saveResult != 0) { // Not Export Selection (index 0)
+                return;
+            }
+        }
+
+        // String path = FileHandler.getSaveFolder("Select Export Folder");
+        String path = UscExportManager.getFile("Export Current Image", FileDialog.SAVE, new String[]{"usc2"}).getAbsolutePath();
+        if (path == null)
+            return;
+        
+        UscExportManager.exportCurrent(path, core);
     }
 
     private void exportAll() {
@@ -498,25 +619,83 @@ public class BatchManager extends JFrame implements ActionListener {
                 return;
             }
         }
-        String path = FileHandler.getSaveFolder("Select Export Folder");
+        String path = UscExportManager.getSaveFolder("Select Export Folder");
         if (path == null)
             return;
         for (String key : project.getImgs().keySet()) {
-            ImageModel model = project.getImgs().get(key);
+            ImageModel model = project.getImage(key);
             if (model != null) {
                 if (model.getGridData() == null) {
-                    core.loadAndProcessImage(model.getFilepath(), model.getGridData());
+                    // Load and process if grid data is missing, updating the model
+                    model.setGridData(core.loadAndProcessImage(model.getFilepath(), null, false));
                 }
-                core.exportFile(new File(path, key + ".usc").getAbsolutePath());
+                String outPath = new File(path, key + ".usc2").getAbsolutePath();
+                UscExportManager.exportImageModel(model, outPath, core);
             }
 
         }
     }
 
+    private void removeImage(){
+        int[] selectedIndices = imageList.getSelectedIndices();
+        if (selectedIndices.length == 0) {
+            javax.swing.JOptionPane.showMessageDialog(this, "No image selected to remove.");
+            return;
+        }
+
+        for (int i = selectedIndices.length - 1; i >= 0; i--) {
+            String name = listModel.getElementAt(selectedIndices[i]);
+            project.getImgs().remove(name);
+            listModel.removeElementAt(selectedIndices[i]);
+        }
+
+        // Clear current selection if it was removed
+        if (currentSelectedImageName != null && !project.getImgs().containsKey(currentSelectedImageName)) {
+            currentSelectedImageName = null;
+            controlPanel.setState(ControlPanel.PanelState.SETUP);
+        }
+    }
+
+    private void sortImages(){
+
+        String[] options = { "Sort A-Z", "Sort Z-A", "Cancel" };
+        int result = javax.swing.JOptionPane.showOptionDialog(this,
+                "Sort images in batch manager?",
+                "Sort Images",
+                javax.swing.JOptionPane.YES_NO_CANCEL_OPTION,
+                javax.swing.JOptionPane.QUESTION_MESSAGE,
+                null,
+                options,
+                options[2]);
+        if (result == 2) { // Cancel
+            return;
+        }
+        if(result == 0){
+            // A-Z
+            java.util.List<String> names = java.util.Collections.list(listModel.elements());
+            java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+            listModel.clear();
+            for(String name : names){
+                listModel.addElement(name);
+            }
+            return;
+        }
+        if(result == 1){
+            // Z-A
+            java.util.List<String> names = java.util.Collections.list(listModel.elements());
+            java.util.Collections.sort(names, java.util.Collections.reverseOrder(String.CASE_INSENSITIVE_ORDER));
+            listModel.clear();
+            for(String name : names){
+                listModel.addElement(name);
+            }
+            return;
+        } 
+    }
+
     public void updateCurrentModelFromCore() {
         if (currentSelectedImageName == null)
             return;
-        ImageModel model = project.getImgs().get(currentSelectedImageName);
+        ImageModel model = project.getImage(currentSelectedImageName);
         if (model != null) {
             // Capture grid, preferences from core
             if (core.resultGrid != null) {

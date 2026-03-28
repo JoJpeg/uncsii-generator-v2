@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.Writer;
 import java.sql.Date;
 
+import core.ProcessingCore;
 import ui.ControlPanel;
 
 public class Logger {
@@ -65,7 +66,7 @@ public class Logger {
         }
         if (sysOut)
             System.out.println(s);
-        ControlPanel.log(s);
+         ControlPanel.log(s);
     }
 
     public static void notify(String s) {
@@ -79,7 +80,7 @@ public class Logger {
 
     public static void print(String s) {
         // line += s;
-        ControlPanel.log(s);
+         ControlPanel.log(s);
     }
 
     public static void printSys(boolean print) {

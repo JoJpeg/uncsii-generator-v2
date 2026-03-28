@@ -5,6 +5,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import core.data.ProjectFileManager;
+import core.data.UscExportManager;
 import logger.Logger;
 import processing.core.PApplet;
 import processing.core.PFont;
@@ -51,7 +53,7 @@ public class ProcessingCore extends PApplet {
     public static final int DEFAULT_DISPLAY_SCALE = 2;
 
     // File paths
-    public static final String DEFAULT_OUTPUT_PATH = "output.usc";
+    public static final String DEFAULT_OUTPUT_PATH = "output.usc2";
 
     // Image conversion states
     public enum ImageLoadingState {
@@ -70,27 +72,27 @@ public class ProcessingCore extends PApplet {
     public Project project;
 
     // --- Display Variables ---
-    private int displayAreaWidth = DEFAULT_DISPLAY_AREA_WIDTH;
-    private int displayAreaHeight = DEFAULT_DISPLAY_AREA_HEIGHT;
-    private int DISPLAY_SCALE = DEFAULT_DISPLAY_SCALE;
-    private boolean showSourceImage = false;
-    private int drawW, drawH;
-    private int drawX, drawY;
+    public int displayAreaWidth = DEFAULT_DISPLAY_AREA_WIDTH;
+    public int displayAreaHeight = DEFAULT_DISPLAY_AREA_HEIGHT;
+    public int DISPLAY_SCALE = DEFAULT_DISPLAY_SCALE;
+    public boolean showSourceImage = false;
+    public int drawW, drawH;
+    public int drawX, drawY;
 
     // --- Font Pattern Variables ---
-    private GlyphPatternGenerator patternGenerator;
+    public GlyphPatternGenerator patternGenerator;
     public Map<Integer, Long> asciiPatterns;
     private String fontPath = ResourceLoader.getTempResourcePath(ResourceLoader.class, "unscii-8.ttf");
     private PFont unscii;
 
     // --- Image & Conversion Variables ---
-    private PImage inputImage;
+    public PImage inputImage;
     // Make these public for FileHandler access
     public ResultGlyph[][] resultGrid;
     public int gridWidth;
     public int gridHeight;
     public String imagePath;
-    
+
     public String getImagePath() {
         return imagePath;
     }
@@ -104,6 +106,8 @@ public class ProcessingCore extends PApplet {
 
     // --- Selection Variables ---
     // Hover selection
+    MultiThreadSolver multiThreadSolver = new MultiThreadSolver(this);
+
     private int mouseGridX = -1;
     private int mouseGridY = -1;
     private ResultGlyph selectedGlyph = null;
@@ -126,7 +130,7 @@ public class ProcessingCore extends PApplet {
     public int selectionEndY = -1;
     public boolean startedDragging = false; // Track if dragging started (for panning or selection)
     public long clickStart = 0; // Track click time
-
+    protected boolean headless = false;
     // Variablen zum Speichern der Auswahl zwischen Bildern
     private boolean savedSelectionActive = false;
     private int savedSelectionStartX = -1;
@@ -140,36 +144,43 @@ public class ProcessingCore extends PApplet {
     public void settings() {
         Logger.sysOut = true;
         size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
+        noSmooth();  
+
     }
 
     @Override
     public void setup() {
+        init();
+        if (!headless) {
+            Logger.println("Not headless. Initializing Panel..");
+            initControlPanel();
+        }
+    }
+
+    public void init() {
         project = new Project();
 
         Logger.println("Font path: " + fontPath);
         // Initialize display variables
         drawX = (width - drawW) / 2;
         drawY = (height - drawH) / 2;
+
         // Initialize font
         unscii = createFont(fontPath, 8, true);
-        background(0);
-        textFont(unscii);
-        textSize(16);
-        textAlign(CENTER, CENTER);
-        text("Unscii Generator", width / 2, height / 2);
-        noSmooth(); // Important for pixel-perfect display
-        // Initialize control panel
-        initControlPanel();
-        new ColorPalette(this);
-        // Setup application
-        // ColorPalette.getColors() = ColorPalette.getColors().getColors();
+        if(!headless){
+            background(0);
+            textFont(unscii);
+            textSize(16);
+            textAlign(CENTER, CENTER);
+            text("Unscii Generator", width / 2, height / 2); 
+        }
+        new ColorPalette(this); 
         generateFontPatterns();
     }
 
     @Override
     public void draw() {
-        //TODO: dont draw when not needed.
-
+        // TODO: dont draw when not needed.
         image(getCheckerBoardImage(), 0, 0, width, height);
 
         // When image is processing, show a loading indicator
@@ -196,6 +207,8 @@ public class ProcessingCore extends PApplet {
      * Initialize the control panel
      */
     private void initControlPanel() {
+        Logger.println("Panel..");
+
         controlPanel = new ControlPanel(this);
         controlPanel.setVisible(true);
         controlPanel.setState(ControlPanel.PanelState.SETUP);
@@ -210,8 +223,6 @@ public class ProcessingCore extends PApplet {
         }
     }
 
-
-    
     /**
      * Generate font patterns for ASCII art conversion
      */
@@ -242,13 +253,13 @@ public class ProcessingCore extends PApplet {
             exitActual();
         }
 
-        Logger.println("\n--- Conversion Setup ---");
-        Logger.println("Image loaded: " + (inputImage != null ? inputImage.width + "x" + inputImage.height : "Failed"));
-        Logger.println("Grid dimensions: " + gridWidth + "x" + gridHeight);
-        Logger.println("Total blocks: " + (gridWidth * gridHeight));
-        Logger.println("Press 's' to switch between Source Image and ASCII Art.");
-        Logger.println("Press 'p' to save the result to 'output.usc' file.");
-        Logger.println("Press '1'-'8' to change display scale.");
+        // Logger.println("\n--- Conversion Setup ---");
+        // Logger.println("Image loaded: " + (inputImage != null ? inputImage.width + "x" + inputImage.height : "Failed"));
+        // Logger.println("Grid dimensions: " + gridWidth + "x" + gridHeight);
+        // Logger.println("Total blocks: " + (gridWidth * gridHeight));
+        // Logger.println("Press 's' to switch between Source Image and ASCII Art.");
+        // Logger.println("Press 'p' to save the result to 'output.usc2' file.");
+        // Logger.println("Press '1'-'8' to change display scale.");
     }
 
     // ========== IMAGE LOADING AND PROCESSING ==========
@@ -259,7 +270,7 @@ public class ProcessingCore extends PApplet {
     public void loadFile() {
         saveCurrentSelection(); // Save the current selection before loading a new image
 
-        File imageFile = FileHandler.loadFile("Select Project or Image");
+        File imageFile = UscExportManager.loadFile("Select Project or Image");
         if (imageFile == null) {
             Logger.println("File selection canceled.");
 
@@ -277,33 +288,32 @@ public class ProcessingCore extends PApplet {
         imagePath = imageFile.getAbsolutePath();
 
         // check file ending
-        
+
         String fileEnding = "";
         int dotIndex = imagePath.lastIndexOf('.');
         if (dotIndex >= 0) {
             fileEnding = imagePath.substring(dotIndex + 1).toLowerCase();
         }
 
-        if(fileEnding == "usc" || fileEnding == "usc2") {
-            //TODO: load an exported usc file
-            javax.swing.JOptionPane.showMessageDialog(null, "Loading .usc files is not yet implemented.", "Not Implemented", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+        if (fileEnding.equals("usc") || fileEnding.equals("usc2")) {
+            // TODO: load an exported usc file
+            javax.swing.JOptionPane.showMessageDialog(null, "Loading .usc files is not yet implemented.",
+                    "Not Implemented", javax.swing.JOptionPane.INFORMATION_MESSAGE);
             controlPanel.setState(ControlPanel.PanelState.SETUP);
             return;
-        }
-        else if (fileEnding.equals("uscp")){
+        } else if (fileEnding.equals("uscp")) {
             Logger.println("Loading project file: " + imagePath);
 
- 
-            Project p = SaveFileManager.loadProject(imageFile);
-            if(p != null){
+            Project p = ProjectFileManager.loadProject(imageFile);
+            if (p != null) {
                 this.project = p;
             }
             controlPanel.setState(ControlPanel.PanelState.EDIT);
-             //check if its a batch project 
+            // check if its a batch project
 
             return;
         }
-        
+
         loadAndProcessImage(imagePath);
 
         if (imageLoadingState == ImageLoadingState.ERROR) {
@@ -321,10 +331,10 @@ public class ProcessingCore extends PApplet {
      * Load and process an image for conversion
      */
     public void loadAndProcessImage(String path) {
-        loadAndProcessImage(path, null);
+        loadAndProcessImage(path, null, false);
     }
 
-    public ResultGlyph[][] loadAndProcessImage(String path, ResultGlyph[][] existingGrid) {
+    public ResultGlyph[][] loadAndProcessImage(String path, ResultGlyph[][] existingGrid, boolean forceReload) {
         try {
             // Early exit if path is null or empty
             if (path == null || path.isEmpty()) {
@@ -337,15 +347,16 @@ public class ProcessingCore extends PApplet {
             isImageProcessing = true;
 
             // Show loading status
-            fill(128);
-            textSize(24);
-            textAlign(CENTER, CENTER);
-            background(30);
-            text("Loading image...", width / 2, height / 2);
+            if(!headless){
+                fill(128);
+                textSize(24);
+                textAlign(CENTER, CENTER);
+                background(30);
+                text("Loading image...", width / 2, height / 2);
 
-            // Update the canvas to give immediate feedback
-            redraw();
-
+                // Update the canvas to give immediate feedback
+                redraw();
+            }
             inputImage = loadImage(path);
             if (inputImage == null) {
                 Logger.println("Error loading image: " + path);
@@ -401,11 +412,12 @@ public class ProcessingCore extends PApplet {
             Logger.println("Starting ASCII conversion...");
             long startTime = System.currentTimeMillis();
 
-            if (existingGrid != null && existingGrid.length == gridHeight && existingGrid[0].length == gridWidth) {
+            if (!forceReload && existingGrid != null && existingGrid.length == gridHeight
+                    && existingGrid[0].length == gridWidth) {
                 Logger.println("Restoring existing grid data...");
                 resultGrid = existingGrid;
             } else {
-                generateAsciiArtExact();
+                multiThreadSolver.generateAsciiArtExact();
             }
 
             long endTime = System.currentTimeMillis();
@@ -510,7 +522,7 @@ public class ProcessingCore extends PApplet {
     /**
      * Extract block pixels from the source image
      */
-    private int[] extractBlockPixels(int gridX, int gridY) {
+    int[] extractBlockPixels(int gridX, int gridY) {
         int[] blockPixels = new int[PIXEL_COUNT];
         int startX = gridX * GLYPH_WIDTH;
         int startY = gridY * GLYPH_HEIGHT;
@@ -537,7 +549,7 @@ public class ProcessingCore extends PApplet {
     /**
      * Find an approximate match for a block using dominant colors
      */
-    private ResultGlyph findApproximateMatch(int[] blockPixels) {
+    public ResultGlyph findApproximateMatch(int[] blockPixels) {
         // Extrahiere den durchschnittlichen Alpha-Wert für Debug-Zwecke
         int totalAlpha = 0;
         for (int pixel : blockPixels) {
@@ -946,13 +958,71 @@ public class ProcessingCore extends PApplet {
         drawSelectionRectangle(gridOriginX, gridOriginY, cellWidth, cellHeight);
     }
 
+    public PGraphics getResultingImage(int SCALE) {
+        if (resultGrid == null) {
+
+            return null;
+        }
+        int cellWidth = GLYPH_WIDTH * SCALE;
+        int cellHeight = GLYPH_HEIGHT * SCALE;
+        
+        int totalGridWidthPixels = gridWidth * cellWidth;
+        int totalGridHeightPixels = gridHeight * cellHeight;
+        int gridOriginX = (width - totalGridWidthPixels) / 2 - width / 2;
+        int gridOriginY = (height - totalGridHeightPixels) / 2 - height / 2;
+        gridOriginX = 0;
+        gridOriginY = 0;
+
+        PGraphics result = createGraphics(totalGridWidthPixels, totalGridHeightPixels);
+        result.beginDraw();
+        // Draw all glyphs
+        for (int y = 0; y < gridHeight; y++) {
+            for (int x = 0; x < gridWidth; x++) {
+                // check for bounds
+                if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) {
+                    continue;
+                }
+                ResultGlyph glyphInfo = null;
+                try {
+                    glyphInfo = resultGrid[y][x];
+                } catch (Exception e) {
+                    Logger.println("ArrayIndexOutOfBoundsException: " + e.getMessage());
+                    continue;
+                }
+                if (glyphInfo == null) {
+                    continue;
+                }
+
+                long pattern = asciiPatterns.getOrDefault(glyphInfo.codePoint, 0L);
+                int fgColor = ColorPalette.getColors()[glyphInfo.fgIndex];
+                int bgColor = ColorPalette.getColors()[glyphInfo.bgIndex];
+                int screenX = gridOriginX + x * cellWidth;
+                int screenY = gridOriginY + y * cellHeight;
+
+                // Verwende den im ResultGlyph gespeicherten Alpha-Wert
+                displayScaledGlyph(pattern, screenX, screenY, SCALE, bgColor, fgColor, glyphInfo.alpha, result);
+            }
+        }
+        result.endDraw();
+        return result;
+    }
+
+    void displayScaledGlyph(long pattern, int screenX, int screenY, int pixelSize, int bgCol, int fgCol,
+            int alphaValue) {
+        displayScaledGlyph(pattern, screenX, screenY, pixelSize, bgCol, fgCol, alphaValue, null);
+    }
+
     /**
      * Display a scaled glyph with the given pattern and colors
      * Now with improved transparency support using alpha values
      */
     void displayScaledGlyph(long pattern, int screenX, int screenY, int pixelSize, int bgCol, int fgCol,
-            int alphaValue) {
-        noStroke();
+            int alphaValue, PGraphics canvas) {
+        if(canvas == null){
+            noStroke();
+        } else {
+            canvas.noStroke();
+        }
 
         // Prüfen, ob aufgrund des Alpha-Wertes der Hintergrund transparent gerendert
         // werden soll
@@ -968,39 +1038,24 @@ public class ProcessingCore extends PApplet {
                 boolean shouldDraw = true;
 
                 if (pixelOn) {
-                    // Für Vordergrundpixel verwenden wir immer die Vordergrundfarbe
                     pixelColor = fgCol;
 
-                    // Bei voll transparenten Glyphen (Alpha = 0) zeichnen wir auch Vordergrund
-                    // nicht
-                    // if (alphaValue == 0) {
-                    // shouldDraw = false;
-                    // }
                 } else {
-                    // Für Hintergrundpixel entscheiden wir basierend auf dem Alpha-Wert
                     if (useTransparentBackground) {
-                        // Wenn Alpha < 127, zeichnen wir den Hintergrund nicht (transparent)
                         shouldDraw = false;
                     } else {
-                        // Ansonsten verwenden wir die Hintergrundfarbe
                         pixelColor = bgCol;
                     }
                 }
 
-                // Nur zeichnen, wenn das Pixel nicht transparent sein soll
                 if (shouldDraw) {
-                    // Wir passen den Alpha-Wert der Farbe entsprechend an (außer bei voller
-                    // Transparenz)
-                    if (alphaValue > 0 && alphaValue < 255) {
-                        // Alpha-Wert anwenden, aber nur wenn nicht bereits voll opak oder transparent
-                        // pixelColor = adjustAlpha(pixelColor, alphaValue);
+                    if (canvas == null) {
+                        fill(pixelColor);
+                        rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
+                    } else {
+                        canvas.fill(pixelColor);
+                        canvas.rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
                     }
-
-                    // if (pixelColor == -1) {
-                    // continue; // Skip if no color is set
-                    // }
-                    fill(pixelColor);
-                    rect(screenX + x * pixelSize, screenY + y * pixelSize, pixelSize, pixelSize);
                 }
             }
         }
@@ -1380,7 +1435,6 @@ public class ProcessingCore extends PApplet {
             // return;
         }
 
-
         char keyChar = event.getKey();
         boolean isMeta = event.isMetaDown(); // Cmd on macOS
         boolean isCtrl = event.isControlDown(); // Ctrl on Win/Linux
@@ -1454,8 +1508,7 @@ public class ProcessingCore extends PApplet {
                 controlPanel.pasteInternalGlyph();
                 // handled = true;
             }
-        }
-        else{
+        } else {
             handleCharacterKey(keyChar);
         }
     }
@@ -1490,28 +1543,28 @@ public class ProcessingCore extends PApplet {
             showSourceImage = !showSourceImage;
             Logger.println("Toggled view: " + (showSourceImage ? "Source Image" : "ASCII Art"));
         } else if (lowerK == 'p') {
-            File outputFile = FileHandler.saveFile("Save Result");
+            File outputFile = UscExportManager.saveFile("Save Result");
             if (outputFile == null) {
                 Logger.println("No file selected for saving.");
                 return;
             }
             outputPath = outputFile.getAbsolutePath();
-            //TODO: get the image Model build
-            FileHandler.exportCurrent(outputPath, this);
+            // TODO: get the image Model build
+            UscExportManager.exportCurrent(outputPath, this);
         } else if (k >= '1' && k <= '8') {
             int targetScale = k - '0';
             setDisplayScale(targetScale);
         } else if (lowerK == 'r') {
             reloadCurrentImage();
         } else if (lowerK == 'l') {
-            //check for file ending. 
+            // check for file ending.
 
             loadFile();
         }
     }
 
     public void exportFile(String path) {
-        FileHandler.exportCurrent(path, this);
+        UscExportManager.exportCurrent(path, this);
     }
 
     /**
@@ -1772,14 +1825,14 @@ public class ProcessingCore extends PApplet {
                 textSize(32);
                 textAlign(CENTER, CENTER);
                 text("Reprocessing selection...", width / 2, height / 2);
-                reprocessSelectedArea();
+                multiThreadSolver.reprocessSelectedArea();
             } else {
                 // Otherwise reload the entire image
                 fill(128);
                 textSize(32);
                 textAlign(CENTER, CENTER);
                 text("Reloading...", width / 2, height / 2);
-                loadAndProcessImage(imagePath);
+                loadAndProcessImage(imagePath, null, true);
             }
         } else {
             Logger.println("No image path set to reload.");
@@ -1884,7 +1937,7 @@ public class ProcessingCore extends PApplet {
      */
     public void centerImage() {
         drawX = (width - drawW) / 2;
-        drawY = (height - drawH) / 2 ;
+        drawY = (height - drawH) / 2;
         Logger.println("Image centered in view");
     }
 
@@ -2490,5 +2543,9 @@ public class ProcessingCore extends PApplet {
         } else {
             Logger.println("No alternative glyphs found for any cell in the selection.");
         }
+    }
+
+    public boolean isHeadless(){
+        return headless;
     }
 }

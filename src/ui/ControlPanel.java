@@ -29,9 +29,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSpinner;
-import javax.swing.JSplitPane;
-import javax.swing.SwingConstants;
+import javax.swing.JSpinner; 
 import javax.swing.SwingUtilities;
 
 import core.ColorPalette;
@@ -45,7 +43,7 @@ import logger.Logger;
  */
 public class ControlPanel extends JFrame implements ActionListener {
 
-    private final ProcessingCore p;
+    private static ProcessingCore p;
     private BatchManager batchManager;
 
     // Buttons & Controls
@@ -84,6 +82,7 @@ public class ControlPanel extends JFrame implements ActionListener {
     private JLabel clickedFgIndexLabel;
     private JLabel clickedBgIndexLabel;
     private JLabel clickedAlphaLabel;
+    private JLabel clickedFileInfoLabel;
 
     // Selection Area Labels
     private JLabel selectionXPosLabel;
@@ -126,7 +125,9 @@ public class ControlPanel extends JFrame implements ActionListener {
         private static final int PREVIEW_HEIGHT = (ProcessingCore.GLYPH_HEIGHT * PREVIEW_PIXEL_SIZE) * 2;
 
         GlyphPreviewPanel() {
-            setPreferredSize(new Dimension(PREVIEW_WIDTH, PREVIEW_HEIGHT));
+            Dimension size = new Dimension(PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            setPreferredSize(size);
+            setMinimumSize(size);
             setBorder(BorderFactory.createLineBorder(Color.GRAY));
         }
 
@@ -304,8 +305,9 @@ public class ControlPanel extends JFrame implements ActionListener {
         // Info Panel (Left)
         JPanel infoWrapper = new JPanel(new GridBagLayout());
         infoWrapper.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "Inspector", 0, 0, new Font("SansSerif", Font.PLAIN, 11)));
+        infoWrapper.setMinimumSize(new Dimension(200, 600));
         GridBagConstraints igbc = new GridBagConstraints();
-        igbc.insets = new Insets(1, 3, 1, 3);
+        igbc.insets = new Insets(1, 3, 3, 3);
         igbc.anchor = GridBagConstraints.WEST;
         
         // Headers
@@ -314,25 +316,32 @@ public class ControlPanel extends JFrame implements ActionListener {
 
         // Data Rows
         clickedPosLabel = new JLabel("-,-"); hoverPosLabel = new JLabel("-,-");
-        clickedPosLabel.setPreferredSize(new Dimension(80, 15));
-        hoverPosLabel.setPreferredSize(new Dimension(80, 15));
+        setupLabel(clickedPosLabel); setupLabel(hoverPosLabel);
         addInfoRow(infoWrapper, "Pos", clickedPosLabel, hoverPosLabel, 1);
         
         clickedCodepointLabel = new JLabel("-"); hoverCodepointLabel = new JLabel("-");
+        setupLabel(clickedCodepointLabel); setupLabel(hoverCodepointLabel);
         addInfoRow(infoWrapper, "CP", clickedCodepointLabel, hoverCodepointLabel, 2);
         
         clickedFgIndexLabel = new JLabel("-"); hoverFgIndexLabel = new JLabel("-");
+        setupLabel(clickedFgIndexLabel); setupLabel(hoverFgIndexLabel);
         addInfoRow(infoWrapper, "FG", clickedFgIndexLabel, hoverFgIndexLabel, 3);
         
         clickedBgIndexLabel = new JLabel("-"); hoverBgIndexLabel = new JLabel("-");
+        setupLabel(clickedBgIndexLabel); setupLabel(hoverBgIndexLabel);
         addInfoRow(infoWrapper, "BG", clickedBgIndexLabel, hoverBgIndexLabel, 4);
         
         clickedAlphaLabel = new JLabel("-"); hoverAlphaLabel = new JLabel("-");
+        setupLabel(clickedAlphaLabel); setupLabel(hoverAlphaLabel);
         addInfoRow(infoWrapper, "Alp", clickedAlphaLabel, hoverAlphaLabel, 5);
+
+        clickedFileInfoLabel = new JLabel("File: -");
+        clickedFileInfoLabel.setFont(new Font("SansSerif", Font.ITALIC, 10));
 
         // Area info
         selectionXPosLabel = new JLabel("-,-");
         selectionWidthLabel = new JLabel("-x-");
+        setupLabel(selectionXPosLabel); setupLabel(selectionWidthLabel);
         igbc.gridx = 0; igbc.gridy = 6; igbc.gridwidth = 4;
         igbc.insets = new Insets(5, 2, 1, 2);
         infoWrapper.add(new JLabel("Sel: "), igbc);
@@ -358,9 +367,18 @@ public class ControlPanel extends JFrame implements ActionListener {
         spacerGbc.gridx = 5; spacerGbc.gridy = 10;
         spacerGbc.weightx = 1.0; spacerGbc.weighty = 1.0;
         infoWrapper.add(new JLabel(""), spacerGbc);
+        infoWrapper.add(new JPanel());
+        infoWrapper.add(new JLabel(""));
 
+        
         centerPanel.add(infoWrapper, BorderLayout.CENTER);
+        igbc.gridy = 8;
+        igbc.gridx = 0; 
+        igbc.gridwidth = 5;
+        igbc.fill = GridBagConstraints.BOTH;
 
+        infoWrapper.add(clickedFileInfoLabel, igbc);
+        
         // Tools / Actions Panel
         JPanel toolsPanel = new JPanel(new GridLayout(3, 3, 2, 2));
         toolsPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "Actions", 0, 0, new Font("SansSerif", Font.PLAIN, 11)));
@@ -403,6 +421,13 @@ public class ControlPanel extends JFrame implements ActionListener {
         add(mainPanel);
         pack();
         setLocationRelativeTo(null);
+    }
+    
+    private void setupLabel(JLabel label) {
+        Dimension d = new Dimension(90, 16);
+        label.setPreferredSize(d);
+        label.setMinimumSize(d);
+        label.setMaximumSize(d);
     }
     
     private void addLabel(JPanel p, String text, int x, int y, GridBagConstraints gbc) {
@@ -452,6 +477,21 @@ public class ControlPanel extends JFrame implements ActionListener {
 
     public void updateForBatchSelection(String name) {
         setTitle("Controls - " + name);
+        String path = p.project.getImage(name).getFilepath();
+        String[] parts = path.split("/");
+        String lastThreeSlugPath = "";
+        if (parts.length >= 3) {
+            lastThreeSlugPath = parts[parts.length - 3] + "/" + parts[parts.length - 2] + "/" + parts[parts.length - 1];
+        } else {
+            lastThreeSlugPath = name;
+        }
+        //check if string is too long and truncate the front if necessary
+        if(lastThreeSlugPath.length() > 40) {
+            lastThreeSlugPath = "..." + lastThreeSlugPath.substring(lastThreeSlugPath.length() - 37);
+        }
+
+        clickedFileInfoLabel.setText("File: .../" + lastThreeSlugPath);
+        clickedFileInfoLabel.setToolTipText(path);
     }
 
     public void setState(PanelState state) {
@@ -761,6 +801,7 @@ public class ControlPanel extends JFrame implements ActionListener {
             hoverCodepointLabel.setText(String.format("%04X", glyph.codePoint));
             hoverFgIndexLabel.setText(String.valueOf(glyph.fgIndex));
             hoverBgIndexLabel.setText(String.valueOf(glyph.bgIndex));
+            
         } else {
             hoverPosLabel.setText("-,-");
             hoverCodepointLabel.setText("-"); hoverFgIndexLabel.setText("-");
@@ -792,7 +833,10 @@ public class ControlPanel extends JFrame implements ActionListener {
 
     public static ControlPanel get() { return Instance; }
     public static void log(String message) {
+        if(p == null || p.isHeadless()){
+            return;
+        }
         if (Instance != null) Instance.appendLog(message);
-        else System.out.println("Log: " + message);
+        // else System.out.println("Log: " + message);
     }
 }

@@ -1,5 +1,6 @@
 package core;
 
+import java.awt.Image;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,5 +21,15 @@ public class Project {
     
     public void addImage(String name, ImageModel model) {
         this.imgs.put(name, model);
+        model.setName(name);
+    }
+
+    public ImageModel getImage(String name){
+        for (ImageModel img : imgs.values()) {
+            if(img.getName().equals(name)){
+                return img;
+            }
+        }
+        return null;
     }
 }

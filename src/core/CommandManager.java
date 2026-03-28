@@ -8,6 +8,7 @@ import java.util.Stack;
 public class CommandManager {
     private Stack<Command> undoStack = new Stack<>();
     private Stack<Command> redoStack = new Stack<>();
+    public static boolean actionPerformed = false;
     private static final int MAX_HISTORY = 50; // Maximale Anzahl gespeicherter Aktionen
 
     /**
@@ -19,6 +20,7 @@ public class CommandManager {
         command.execute();
         undoStack.push(command);
         redoStack.clear(); // Nach einer neuen Aktion wird der Redo-Stack gelöscht
+        actionPerformed = true;
 
         // Begrenze die Größe des Undo-Stacks
         if (undoStack.size() > MAX_HISTORY) {
